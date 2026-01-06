@@ -1,0 +1,44 @@
+                                                                *React.toggle()*
+                                `React.toggle`()
+Toggle the plugin by calling the `enable`/`disable` methods respectively.
+
+------------------------------------------------------------------------------
+                                                                *React.enable()*
+                            `React.enable`({scope})
+Initializes the plugin, sets event listeners and internal state.
+
+------------------------------------------------------------------------------
+                                                               *React.disable()*
+                               `React.disable`()
+Disables the plugin, clear highlight groups and autocmds, closes side buffers and resets the internal state.
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                                 *React.options*
+                                `React.options`
+React configuration with its default values.
+
+Type ~
+`(table)`
+Default values:
+>lua
+  React.options = {
+      -- Prints useful logs about what event are triggered, and reasons actions are executed.
+      debug = false,
+  }
+
+<
+------------------------------------------------------------------------------
+                                                                 *React.setup()*
+                            `React.setup`({options})
+Define your react setup.
+
+Parameters ~
+{options} `(table)` Module config table. See |React.options|.
+
+Usage ~
+`require("react").setup()` (add `{}` with your |React.options| table)
+
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

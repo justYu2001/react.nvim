@@ -1,0 +1,5 @@
+React.disable()	react.txt	/*React.disable()*
+React.enable()	react.txt	/*React.enable()*
+React.options	react.txt	/*React.options*
+React.setup()	react.txt	/*React.setup()*
+React.toggle()	react.txt	/*React.toggle()*
