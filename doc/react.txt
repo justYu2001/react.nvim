@@ -41,4 +41,187 @@ Usage ~
 `require("react").setup()` (add `{}` with your |React.options| table)
 
 
+==============================================================================
+------------------------------------------------------------------------------
+Class ~
+{TSNode}
+Fields ~
+{range} `(fun(self: TSNode): number,)` number, number, number
+{start} `(fun(self: TSNode): number,)` number
+{type} `(fun(self: TSNode): string)`
+{field} `(fun(self: TSNode, name: string): TSNode[])`
+{parent} `(fun(self: TSNode): TSNode|nil)`
+{named_child} `(fun(self: TSNode, index: number): TSNode|nil)`
+{named_child_count} `(fun(self: TSNode): number)`
+{iter_children} `(fun(self: TSNode): fun():)` TSNode, string
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                                    *M.rename()*
+                         `M.rename`({new_name}, {opts})
+Enhanced rename with useState setter/state auto-renaming
+
+Parameters ~
+{new_name} `(string|nil)`: new name for the symbol
+{opts} `(table|nil)`: additional options
+
+------------------------------------------------------------------------------
+                                                     *M.merge_workspace_edits()*
+                      `M.merge_workspace_edits`({results})
+Parameters ~
+{results} `(table)`: results from vim.lsp.buf_request_all
+Return ~
+`(table|nil)`: merged workspace edit or nil
+
+------------------------------------------------------------------------------
+                                                       *M.add_secondary_edits()*
+`M.add_secondary_edits`({workspace_edit}, {locations}, {_old_name}, {new_name})
+Parameters ~
+{workspace_edit} `(table)`: workspace edit to modify
+{locations} `(table[])`: LSP Location objects
+{_old_name} `(string)`: old symbol name (unused, uses locations)
+{new_name} `(string)`: new symbol name
+
+------------------------------------------------------------------------------
+                                                   *M.try_add_use_state_edits()*
+                 `M.try_add_use_state_edits`({workspace_edit})
+Try to add useState secondary edits to workspace edit if applicable
+Called during apply_workspace_edit hook for inc-rename integration
+
+Parameters ~
+{workspace_edit} `(table)`: workspace edit from LSP
+Return ~
+`(table|nil)`: enhanced workspace edit or nil if not useState
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                     *M.calculate_setter_name()*
+                    `M.calculate_setter_name`({state_name})
+Parameters ~
+{state_name} `(string)`: state variable name
+Return ~
+`(string)`: setter name
+
+------------------------------------------------------------------------------
+                                                      *M.calculate_state_name()*
+                    `M.calculate_state_name`({setter_name})
+Parameters ~
+{setter_name} `(string)`: setter variable name
+Return ~
+`(string|nil)`: state name or nil if not valid setter
+
+------------------------------------------------------------------------------
+                                                         *M.is_state_variable()*
+                     `M.is_state_variable`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table)`: {is_state: bool, setter_name: string, state_name: string}
+
+------------------------------------------------------------------------------
+                                                        *M.is_setter_variable()*
+                     `M.is_setter_variable`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table)`: {is_setter: bool, state_name: string, setter_name: string}
+
+------------------------------------------------------------------------------
+                                                           *M.find_references()*
+                  `M.find_references`({bufnr}, {symbol_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{symbol_name} `(string)`: symbol to find
+Return ~
+`(table[])`: array of LSP-like Location objects
+
+------------------------------------------------------------------------------
+                                                            *M.check_conflict()*
+                    `M.check_conflict`({bufnr}, {new_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{new_name} `(string)`: proposed new name
+Return ~
+`(boolean)`: true if conflict exists
+
+------------------------------------------------------------------------------
+                                                        *M.get_rename_context()*
+                     `M.get_rename_context`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: {is_state_rename: bool, secondary_old: string, state_name: string, setter_name: string}
+
+------------------------------------------------------------------------------
+                                          *M.calculate_secondary_from_primary()*
+     `M.calculate_secondary_from_primary`({new_primary}, {is_state_rename})
+Parameters ~
+{new_primary} `(string)`: new primary name
+{is_state_rename} `(boolean)`: true if renaming state, false if setter
+Return ~
+`(string|nil)`: secondary name
+
+------------------------------------------------------------------------------
+                                                *M.extract_new_name_from_edit()*
+                `M.extract_new_name_from_edit`({workspace_edit})
+Parameters ~
+{workspace_edit} `(table)`: workspace edit from LSP
+Return ~
+`(string|nil)`: new name from first edit
+
+------------------------------------------------------------------------------
+                                                  *M.prepare_secondary_rename()*
+            `M.prepare_secondary_rename`({bufnr}, {pos}, {new_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+{new_name} `(string)`: new name for primary symbol
+Return ~
+`(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
+
+------------------------------------------------------------------------------
+                                               *M.prepare_secondary_from_edit()*
+       `M.prepare_secondary_from_edit`({bufnr}, {pos}, {workspace_edit})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+{workspace_edit} `(table)`: workspace edit from LSP
+Return ~
+`(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                                *M.has_parser()*
+                        `M.has_parser`({bufnr}, {lang})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{lang} `(string)`: language name (e.g., "javascript", "typescript")
+Return ~
+`(boolean)`: true if parser is available
+
+------------------------------------------------------------------------------
+                                                        *M.get_node_at_cursor()*
+                        `M.get_node_at_cursor`({bufnr})
+Parameters ~
+{bufnr} `(number)`: buffer number
+Return ~
+`(TSNode|nil)`: node at cursor or nil
+
+------------------------------------------------------------------------------
+                                                  *M.find_use_state_at_cursor()*
+                     `M.find_use_state_at_cursor`({bufnr})
+Find useState pattern at cursor position
+
+Parameters ~
+{bufnr} `(number)`: buffer number
+Return ~
+`(table|nil)`: {state_var: string, setter_var: string, state_range: table, setter_range: table} or nil
+
+
  vim:tw=78:ts=8:noet:ft=help:norl:
