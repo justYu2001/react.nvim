@@ -1,5 +1,6 @@
 local log = require("react.util.log")
 local state = require("react.state")
+local lsp = require("react.lsp")
 
 -- internal methods
 local main = {}
@@ -31,6 +32,8 @@ function main.enable(scope)
         return
     end
 
+    lsp.setup()
+
     state.set_enabled(state)
 
     -- saves the state globally to `_G.React.state`
@@ -47,6 +50,8 @@ function main.disable(scope)
 
         return
     end
+
+    lsp.teardown()
 
     state.set_disabled(state)
 

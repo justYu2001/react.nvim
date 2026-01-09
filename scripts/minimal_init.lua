@@ -7,6 +7,12 @@ if #vim.api.nvim_list_uis() == 0 then
     -- Assumed that 'mini.nvim' is stored in 'deps/mini.nvim'
     vim.cmd("set rtp+=deps/mini.nvim")
 
+    -- Add 'nvim-treesitter' for tree-sitter parsing in tests
+    vim.cmd("set rtp+=deps/nvim-treesitter")
+
+    -- Install parsers for tests (blocking) - required for treesitter.lua queries
+    require("nvim-treesitter.install").install({ "javascript", "typescript" }):wait(60000)
+
     -- Set up 'mini.test'
     require("mini.test").setup()
 

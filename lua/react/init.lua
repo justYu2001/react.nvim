@@ -18,12 +18,22 @@ function React.enable(scope)
         _G.React.config = config.options
     end
 
-    main.toggle(scope or "public_api_enable")
+    main.enable(scope or "public_api_enable")
 end
 
 --- Disables the plugin, clear highlight groups and autocmds, closes side buffers and resets the internal state.
 function React.disable()
-    main.toggle("public_api_disable")
+    main.disable("public_api_disable")
+end
+
+function React.is_enabled()
+    if _G.React.state == nil then
+        return false
+    end
+
+    local state = require("react.state")
+
+    return state.get_enabled(state)
 end
 
 -- setup React options and merge them with user provided ones.

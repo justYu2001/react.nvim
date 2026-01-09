@@ -1,14 +1,20 @@
 .SUFFIXES:
+.PHONY: all test deps lint
 
 all: documentation lint luals test
 
 # runs all the test files.
 test:
 	make deps
+	make install-parsers
 	nvim --version | head -n 1 && echo ''
 	nvim --headless --noplugin -u ./scripts/minimal_init.lua \
 		-c "lua require('mini.test').setup()" \
 		-c "lua MiniTest.run({ execute = { reporter = MiniTest.gen_reporter.stdout({ group_depth = 2 }) } })"
+
+# installs treesitter parsers for tests
+install-parsers:
+	nvim --headless --noplugin -u ./scripts/minimal_init.lua -c "qa!"
 
 # runs all the test files on the nightly version, `bob` must be installed.
 test-nightly:
@@ -20,10 +26,12 @@ test-0.8.3:
 	bob use 0.8.3
 	make test
 
-# installs `mini.nvim`, used for both the tests and documentation.
+# installs deps for tests and documentation.
 deps:
 	@mkdir -p deps
-	git clone --depth 1 https://github.com/echasnovski/mini.nvim deps/mini.nvim
+	@test -d deps/mini.nvim || git clone --depth 1 https://github.com/echasnovski/mini.nvim deps/mini.nvim
+	@test -d deps/nvim-treesitter || git clone --depth 1 https://github.com/nvim-treesitter/nvim-treesitter deps/nvim-treesitter
+	@test -d deps/LuaSnip || git clone --depth 1 https://github.com/L3MON4D3/LuaSnip deps/LuaSnip
 
 # installs deps before running tests, useful for the CI.
 test-ci: deps test
@@ -49,4 +57,5 @@ luals:
 	mkdir -p .ci/lua-ls
 	curl -sL "https://github.com/LuaLS/lua-language-server/releases/download/3.7.4/lua-language-server-3.7.4-darwin-x64.tar.gz" | tar xzf - -C "${PWD}/.ci/lua-ls"
 	make luals-ci
+
 

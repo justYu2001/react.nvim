@@ -21,14 +21,10 @@ local defaults = vim.deepcopy(React.options)
 ---
 ---@private
 function React.defaults(options)
-    React.options =
-        vim.deepcopy(vim.tbl_deep_extend("keep", options or {}, defaults or {}))
+    React.options = vim.deepcopy(vim.tbl_deep_extend("keep", options or {}, defaults or {}))
 
     -- let your user know that they provided a wrong value, this is reported when your plugin is executed.
-    assert(
-        type(React.options.debug) == "boolean",
-        "`debug` must be a boolean (`true` or `false`)."
-    )
+    assert(type(React.options.debug) == "boolean", "`debug` must be a boolean (`true` or `false`).")
 
     return React.options
 end
