@@ -23,6 +23,8 @@ local function find_jsx_element_at_cursor(bufnr)
         return nil
     end
 
+    parser:parse()
+
     local cursor = vim.api.nvim_win_get_cursor(0)
     local row = cursor[1] - 1
     local col = cursor[2]
@@ -105,35 +107,6 @@ end
 function M.setup()
     local bufnr = vim.api.nvim_get_current_buf()
     local opts = { noremap = true, silent = true, buffer = bufnr }
-
-    local mode_labels = {
-        o = ":omap ",
-        x = ":xmap ",
-    }
-
-    local conflicts = {}
-
-    for _, mode in ipairs({ "o", "x" }) do
-        for _, lhs in ipairs({ "it", "at" }) do
-            local existing = vim.fn.maparg(lhs, mode, false, true)
-
-            if existing and existing ~= "" and not existing.buffer then
-                local label = mode_labels[mode] or (mode .. " ")
-
-                table.insert(conflicts, "`" .. label .. lhs .. "`")
-            end
-        end
-    end
-
-    if #conflicts > 0 then
-        vim.notify(
-            string.format(
-                "[react.nvim] Overriding existing mappings: %s",
-                table.concat(conflicts, ", ")
-            ),
-            vim.log.levels.WARN
-        )
-    end
 
     if not M._keymaps[bufnr] then
         M._keymaps[bufnr] = {
