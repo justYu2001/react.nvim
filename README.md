@@ -3,28 +3,19 @@
 </p>
 
 <p align="center">
-    > A catch phrase that describes your plugin.
+    Refactoring tools to improve React development experience in Neovim
 </p>
 
 <div align="center">
-    > Drag your video (<10MB) here to host it for free on GitHub.
-</div>
-
-<div align="center">
-
-> Videos don't work on GitHub mobile, so a GIF alternative can help users.
-
-_[GIF version of the showcase video for mobile users](SHOWCASE_GIF_LINK)_
-
+    <img src="./demo.gif" alt="demo" />
 </div>
 
 ## ⚡️ Features
 
-> Write short sentences describing your plugin features
-
-- FEATURE 1
-- FEATURE ..
-- FEATURE N
+- **Bidirectional useState renaming**: Renaming state variable automatically updates setter, and vice versa
+- **LSP integration**: Works seamlessly with native LSP rename functionality
+- **inc-rename.nvim support**: Compatible with interactive renaming workflows
+- **Conflict detection**: Prevents naming conflicts before applying renames
 
 ## 📋 Installation
 
@@ -81,9 +72,13 @@ Plug "react.nvim"
 
 ```lua
 -- stable version
-require("lazy").setup({{"react.nvim", version = "*"}})
+return {
+    {"react.nvim", version = "*"}
+}
 -- dev version
-require("lazy").setup({"react.nvim"})
+return {
+    "react.nvim"
+}
 ```
 
 </td>
@@ -94,39 +89,24 @@ require("lazy").setup({"react.nvim"})
 
 ## ☄ Getting started
 
-> Describe how to use the plugin the simplest way
+The plugin automatically enables when you open React files (`.jsx`, `.tsx`).
 
-## ⚙ Configuration
+Use your LSP rename function (typically `<leader>rn` or `:lua vim.lsp.buf.rename()`) on any useState variable:
 
-> The configuration list sometimes become cumbersome, making it folded by default reduce the noise of the README file.
-
-<details>
-<summary>Click to unfold the full list of options with their default values</summary>
-
-> **Note**: The options are also available in Neovim by calling `:h react.options`
-
-```lua
-require("react").setup({
-    -- you can copy the full list from lua/react/config.lua
-})
-```
-
-</details>
+**Examples:**
+- Rename `count` → `num` automatically updates `setCount` → `setNum`
+- Rename `setCount` → `setNum` automatically updates `count` → `num`
+- Rename `isOpen` → `isVisible` automatically updates `setIsOpen` → `setIsVisible`
+- Rename `setLoading` → `setFetching` automatically updates `loading` → `fetching`
 
 ## 🧰 Commands
 
-|   Command   |         Description        |
-|-------------|----------------------------|
-|  `:Toggle`  |     Enables the plugin.    |
+|      Command      |              Description              |
+|-------------------|---------------------------------------|
+|     `:React`      |  Toggle plugin enabled/disabled       |
+|  `:React status`  |  Check if plugin is enabled           |
 
 ## ⌨ Contributing
 
 PRs and issues are always welcome. Make sure to provide as much context as possible when opening one.
 
-## 🗞 Wiki
-
-You can find guides and showcase of the plugin on [the Wiki](https://github.com/al02462147/react.nvim/wiki)
-
-## 🎭 Motivations
-
-> If alternatives of your plugin exist, you can provide some pros/cons of using yours over the others.
