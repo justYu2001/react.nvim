@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-    Refactoring tools to improve React development experience in Neovim
+    Refactoring and editing tools for React development in Neovim
 </p>
 
 <div align="center">
@@ -13,6 +13,7 @@
 ## ⚡️ Features
 
 - **Bidirectional useState renaming**: Renaming state variable automatically updates setter, and vice versa
+- **JSX text objects**: Vim text objects for JSX elements (`it` for inner content, `at` for whole element)
 - **LSP integration**: Works seamlessly with native LSP rename functionality
 - **inc-rename.nvim support**: Compatible with interactive renaming workflows
 - **Conflict detection**: Prevents naming conflicts before applying renames
@@ -98,6 +99,25 @@ Use your LSP rename function on any useState variable:
 - Rename `setCount` → `setNum` automatically updates `count` → `num`
 - Rename `isOpen` → `isVisible` automatically updates `setIsOpen` → `setIsVisible`
 - Rename `setLoading` → `setFetching` automatically updates `loading` → `fetching`
+
+## 🎯 Text Objects
+
+JSX text objects for efficient editing:
+
+**`it` (inner tag)**: Select content between JSX tags
+- `vit` - visually select inner content
+- `dit` - delete inner content
+- `cit` - change inner content
+
+**`at` (around tag)**: Select entire JSX element including tags
+- `vat` - visually select whole element
+- `dat` - delete whole element
+- `cat` - change whole element
+
+**Supported elements:**
+- Standard elements: `<div>content</div>`
+- Self-closing elements: `<Component />`
+- Fragments: `<>content</>`
 
 ## 🧰 Commands
 

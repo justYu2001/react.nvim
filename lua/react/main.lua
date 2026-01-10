@@ -34,6 +34,9 @@ function main.enable(scope)
 
     lsp.setup()
 
+    local textobjects = require("react.textobjects")
+    textobjects.setup()
+
     state.set_enabled(state)
 
     -- saves the state globally to `_G.React.state`
@@ -52,6 +55,9 @@ function main.disable(scope)
     end
 
     lsp.teardown()
+
+    local textobjects = require("react.textobjects")
+    textobjects.teardown()
 
     state.set_disabled(state)
 
