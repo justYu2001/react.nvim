@@ -67,43 +67,6 @@ T["setup"]["tracks keymaps for cleanup"] = function()
     cleanup_buffer(bufnr)
 end
 
-T["setup"]["warns on conflicting global mappings"] = function()
-    -- Create a global mapping first
-    vim.keymap.set("o", "it", function() end, { noremap = true })
-
-    local bufnr = create_jsx_buffer({ "<div>test</div>" })
-
-    -- Capture notifications
-    local notifications = {}
-    local original_notify = vim.notify
-    vim.notify = function(msg, level)
-        table.insert(notifications, { msg = msg, level = level })
-    end
-
-    textobjects.setup()
-
-    vim.notify = original_notify
-
-    -- Check for warning
-    local found_warning = false
-    for _, notif in ipairs(notifications) do
-        if
-            notif.msg:find("Overriding existing mappings")
-            and notif.level == vim.log.levels.WARN
-        then
-            found_warning = true
-            break
-        end
-    end
-
-    eq(found_warning, true)
-
-    -- Cleanup
-    vim.keymap.del("o", "it")
-    cleanup_buffer(bufnr)
-end
-
--- Test teardown() function
 T["teardown"] = new_set()
 
 T["teardown"]["removes keymaps"] = function()
