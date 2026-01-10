@@ -110,6 +110,254 @@ Parameters ~
 Return ~
 `(table|nil)`: enhanced workspace edit or nil if not useState
 
+------------------------------------------------------------------------------
+                                               *M.handle_props_workspace_edit()*
+`M.handle_props_workspace_edit`({workspace_edit}, {bufnr}, {pos}, {props_info})
+Parameters ~
+{workspace_edit} `(table)`
+{bufnr} `(number)`
+{pos} `(table)`
+{props_info} `(table)`
+Return ~
+`(table|nil)`
+
+------------------------------------------------------------------------------
+                                          *M.apply_direct_from_workspace_edit()*
+       `M.apply_direct_from_workspace_edit`({pending}, {offset_encoding})
+Parameters ~
+{pending} `(table)` pending props edit context
+{offset_encoding} `(string)` LSP offset encoding
+
+------------------------------------------------------------------------------
+                                  *M.apply_direct_from_destructure_inc_rename()*
+   `M.apply_direct_from_destructure_inc_rename`({pending}, {offset_encoding})
+Parameters ~
+{pending} `(table)` pending props edit context
+{offset_encoding} `(string)` LSP offset encoding
+
+------------------------------------------------------------------------------
+                                         *M.apply_direct_from_body_inc_rename()*
+      `M.apply_direct_from_body_inc_rename`({pending}, {offset_encoding})
+Parameters ~
+{pending} `(table)`
+{offset_encoding} `(string)`
+
+------------------------------------------------------------------------------
+                                                  *M.show_deferred_props_menu()*
+                         `M.show_deferred_props_menu`()
+Show deferred props rename menu after renaming
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                     *M.detect_prop_at_cursor()*
+                   `M.detect_prop_at_cursor`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: {is_prop: bool, prop_name: string, context: string} or nil
+
+------------------------------------------------------------------------------
+                                                    *M.detect_prop_treesitter()*
+                      `M.detect_prop_treesitter`({bufnr})
+Parameters ~
+{bufnr} `(number)`: buffer number
+Return ~
+`(table|nil)`: prop info or nil
+
+------------------------------------------------------------------------------
+                                                       *M.check_jsx_attribute()*
+         `M.check_jsx_attribute`({bufnr}, {root}, {row}, {col}, {lang})
+Parameters ~
+{bufnr} `(number)`
+{root} `(TSNode)`
+{row} `(number)`
+{col} `(number)`
+{lang} `(string)`
+Return ~
+`(table|nil)`
+
+------------------------------------------------------------------------------
+                                                       *M.check_destructuring()*
+         `M.check_destructuring`({bufnr}, {root}, {row}, {col}, {lang})
+Parameters ~
+{bufnr} `(number)`
+{root} `(TSNode)`
+{row} `(number)`
+{col} `(number)`
+{lang} `(string)`
+Return ~
+`(table|nil)`
+
+------------------------------------------------------------------------------
+                                                       *M.check_body_variable()*
+        `M.check_body_variable`({bufnr}, {_root}, {row}, {col}, {_lang})
+Parameters ~
+{bufnr} `(number)`
+{_root} `(TSNode)`
+{row} `(number)`
+{col} `(number)`
+{_lang} `(string)`
+Return ~
+`(table|nil)`
+
+------------------------------------------------------------------------------
+                                                      *M.check_type_signature()*
+        `M.check_type_signature`({bufnr}, {root}, {row}, {col}, {lang})
+Parameters ~
+{bufnr} `(number)`
+{root} `(TSNode)`
+{row} `(number)`
+{col} `(number)`
+{lang} `(string)`
+Return ~
+`(table|nil)`
+
+------------------------------------------------------------------------------
+                                                         *M.detect_prop_regex()*
+                     `M.detect_prop_regex`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: prop info or nil
+
+------------------------------------------------------------------------------
+                                                   *M.find_type_name_for_node()*
+                      `M.find_type_name_for_node`({node})
+Parameters ~
+{node} `(TSNode)`
+Return ~
+`(string|nil)`: type/interface name if node is inside type declaration
+
+------------------------------------------------------------------------------
+                                                 *M.find_component_using_type()*
+      `M.find_component_using_type`({bufnr}, {root}, {type_name}, {lang})
+Parameters ~
+{bufnr} `(number)`
+{root} `(TSNode)`
+{type_name} `(string)`
+{lang} `(string)`
+Return ~
+`(TSNode|nil)`: function node that uses this type
+
+------------------------------------------------------------------------------
+                                                   *M.find_jsx_component_name()*
+                      `M.find_jsx_component_name`({node})
+Find JSX component name from node (walks up to jsx element)
+Parameters ~
+{node} `(TSNode)`
+Return ~
+`(string|nil)`: component name if in JSX usage
+
+------------------------------------------------------------------------------
+                                                    *M.find_component_by_name()*
+     `M.find_component_by_name`({bufnr}, {root}, {component_name}, {lang})
+Find component definition by name in buffer
+Parameters ~
+{bufnr} `(number)`
+{root} `(TSNode)`
+{component_name} `(string)`
+{lang} `(string)`
+Return ~
+`(TSNode|nil)`: function node or nil
+
+------------------------------------------------------------------------------
+                                                     *M.find_component_import()*
+      `M.find_component_import`({bufnr}, {root}, {component_name}, {lang})
+Find component in imported files
+Parameters ~
+{bufnr} `(number)`
+{root} `(TSNode)`
+{component_name} `(string)`
+{lang} `(string)`
+Return ~
+`(table|nil)`: {file_path: string, component_info: table}
+
+------------------------------------------------------------------------------
+                                                   *M.find_component_for_prop()*
+       `M.find_component_for_prop`({bufnr}, {_prop_name}, {context_pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{_prop_name} `(string)`: prop name to find
+{context_pos} `(table)`: cursor position where detection happened
+Return ~
+`(table|nil)`: component info or nil
+
+------------------------------------------------------------------------------
+                                                 *M.find_destructure_location()*
+     `M.find_destructure_location`({bufnr}, {component_info}, {prop_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{component_info} `(table|nil)`: component info from find_component_for_prop
+{prop_name} `(string)`: prop name to find
+Return ~
+`(table)`: {found: bool, range: table|nil, is_aliased: bool, current_alias: string|nil}
+
+------------------------------------------------------------------------------
+                                                         *M.create_alias_edit()*
+   `M.create_alias_edit`({bufnr}, {destructure_info}, {old_name}, {new_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{destructure_info} `(table)`: destructure location info
+{old_name} `(string)`: old prop name
+{new_name} `(string)`: new prop name
+Return ~
+`(table)`: TextEdit for alias transformation
+
+------------------------------------------------------------------------------
+                                              *M.find_alias_variable_position()*
+   `M.find_alias_variable_position`({bufnr}, {destructure_range}, {old_name})
+position of alias variable in destructure pattern after first rename
+first rename applied, buffer has { newName: oldName }, find position of oldName
+Parameters ~
+{bufnr} `(number)`
+{destructure_range} `(table)` LSP range (original range before any edits)
+{old_name} `(string)` original prop name to find in alias position
+Return ~
+`(table|nil)` LSP Position {line, character}
+
+------------------------------------------------------------------------------
+                                                         *M.find_key_position()*
+        `M.find_key_position`({bufnr}, {destructure_range}, {key_name})
+position of key in destructure pattern after renaming alias
+renaming alias, buffer has { oldKey: newName }, find position of oldKey
+Parameters ~
+{bufnr} `(number)`
+{destructure_range} `(table)` LSP range
+{key_name} `(string)` the key name to find
+Return ~
+`(table|nil)` LSP Position {line, character}
+
+------------------------------------------------------------------------------
+                                            *M.convert_to_shorthand_in_buffer()*
+              `M.convert_to_shorthand_in_buffer`({bufnr}, {name})
+{ bar: bar } to { bar } in buffer after rename is applied
+pair_pattern nodes where key and value match, converts to shorthand
+Parameters ~
+{bufnr} `(number)`
+{name} `(string)` the prop name
+
+------------------------------------------------------------------------------
+                                                   *M.calculate_cursor_offset()*
+            `M.calculate_cursor_offset`({bufnr}, {pos}, {prop_name})
+Calculate cursor offset within prop name
+@param bufnr number buffer number
+@param pos table {row, col} cursor position (1-indexed row, 0-indexed col)
+@param prop_name string the prop name at cursor
+@return number|nil offset from start of prop name, or nil if can't determine
+
+------------------------------------------------------------------------------
+                                                   *M.restore_cursor_position()*
+`M.restore_cursor_position`({bufnr}, {win}, {new_prop_name}, {original_pos}, {offset})
+Restore cursor position after prop rename
+@param bufnr number buffer number
+@param win number window handle
+@param new_prop_name string renamed prop name
+@param original_pos table|nil original cursor position {row, col} (1-indexed row, 0-indexed col)
+@param offset number cursor offset within prop name (0-indexed)
+
 
 ==============================================================================
 ------------------------------------------------------------------------------
@@ -183,14 +431,6 @@ Return ~
 `(string|nil)`: secondary name
 
 ------------------------------------------------------------------------------
-                                                *M.extract_new_name_from_edit()*
-                `M.extract_new_name_from_edit`({workspace_edit})
-Parameters ~
-{workspace_edit} `(table)`: workspace edit from LSP
-Return ~
-`(string|nil)`: new name from first edit
-
-------------------------------------------------------------------------------
                                                   *M.prepare_secondary_rename()*
             `M.prepare_secondary_rename`({bufnr}, {pos}, {new_name})
 Parameters ~
@@ -209,6 +449,27 @@ Parameters ~
 {workspace_edit} `(table)`: workspace edit from LSP
 Return ~
 `(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                *M.extract_new_name_from_edit()*
+                `M.extract_new_name_from_edit`({workspace_edit})
+Parameters ~
+{workspace_edit} `(table)`: workspace edit from LSP
+Return ~
+`(string|nil)`: new name from first edit
+
+
+==============================================================================
+------------------------------------------------------------------------------
+                                                          *M.show_rename_menu()*
+      `M.show_rename_menu`({old_name}, {new_name}, {context}, {callback})
+Parameters ~
+{old_name} `(string)`: original prop name
+{new_name} `(string)`: new prop name
+{context} `(string)` Rename target context (e.g. "jsx", "body", "type")
+{callback} `(function)`: callback with choice ("direct" or "alias")
 
 
 ==============================================================================

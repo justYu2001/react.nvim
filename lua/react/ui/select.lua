@@ -1,0 +1,39 @@
+local is_jsx_or_type = {
+    jsx = true,
+    type = true,
+}
+
+local M = {}
+
+---@param old_name string: original prop name
+---@param new_name string: new prop name
+---@param context string Rename target context (e.g. "jsx", "body", "type")
+---@param callback function: callback with choice ("direct" or "alias")
+function M.show_rename_menu(old_name, new_name, context, callback)
+    local key = is_jsx_or_type[context] and new_name or old_name
+    local alias = is_jsx_or_type[context] and old_name or new_name
+
+    local items = {
+        {
+            label = string.format("Rename prop directly: { %s }", new_name),
+            value = "direct",
+        },
+        {
+            label = string.format("Use alias: { %s: %s }", key, alias),
+            value = "alias",
+        },
+    }
+
+    vim.ui.select(items, {
+        prompt = "Rename prop:",
+        format_item = function(item)
+            return item.label
+        end,
+    }, function(choice)
+        if choice then
+            callback(choice.value)
+        end
+    end)
+end
+
+return M

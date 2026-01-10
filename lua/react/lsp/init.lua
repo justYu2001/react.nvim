@@ -39,6 +39,11 @@ function M.setup_inc_rename_hook()
     vim.lsp.util.apply_workspace_edit = function(workspace_edit, offset_encoding, ...)
         local enhanced_edit = rename.try_add_use_state_edits(workspace_edit)
 
+        -- Check if we're handling this asynchronously
+        if enhanced_edit and enhanced_edit._react_handled then
+            return -- Don't apply, deferred handler will do it
+        end
+
         return M._original_apply_workspace_edit(
             enhanced_edit or workspace_edit,
             offset_encoding,

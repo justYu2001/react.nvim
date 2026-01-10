@@ -1,4 +1,7 @@
 local use_state = require("react.lsp.rename.use_state")
+local props = require("react.lsp.rename.props")
+local utils = require("react.lsp.rename.utils")
+local ui = require("react.ui.select")
 local log = require("react.util.log")
 
 local M = {}
@@ -14,7 +17,7 @@ function M.rename(new_name, opts)
     local pos = vim.api.nvim_win_get_cursor(0)
 
     if not new_name then
-        -- Interactive rename not yet supported
+        -- Interactive rename not yet supported for useState
         -- TODO: Could enhance to support interactive rename + auto-setter
         log.debug("rename", "Interactive rename not yet supported, using original")
 
@@ -187,6 +190,12 @@ function M.try_add_use_state_edits(workspace_edit)
     local bufnr = vim.api.nvim_get_current_buf()
     local pos = vim.api.nvim_win_get_cursor(0)
 
+    local props_info = props.detect_prop_at_cursor(bufnr, pos)
+
+    if props_info and props_info.is_prop then
+        return M.handle_props_workspace_edit(workspace_edit, bufnr, pos, props_info)
+    end
+
     local rename_info = use_state.prepare_secondary_from_edit(bufnr, pos, workspace_edit)
 
     if not rename_info then
@@ -213,6 +222,332 @@ function M.try_add_use_state_edits(workspace_edit)
     )
 
     return enhanced_edit
+end
+
+---@param workspace_edit table
+---@param bufnr number
+---@param pos table
+---@param props_info table
+---@return table|nil
+function M.handle_props_workspace_edit(workspace_edit, bufnr, pos, props_info)
+    local new_name = utils.extract_new_name_from_edit(workspace_edit)
+
+    if not new_name then
+        return nil
+    end
+
+    local component_info = props.find_component_for_prop(bufnr, props_info.prop_name, pos)
+
+    local destructure_info =
+        props.find_destructure_location(bufnr, component_info, props_info.prop_name)
+
+    if not destructure_info.found then
+        return nil -- Not destructured, use normal rename
+    end
+
+    -- For shorthand destructuring, LSP creates "oldName: newName"
+    -- We need to extract just the newName part
+    -- Check cursor_target for destructure context, or is_aliased for body context
+    if
+        props_info.cursor_target == "shorthand"
+        or (props_info.context == "body" and not destructure_info.is_aliased)
+    then
+        local colon_pos = new_name:find(": ")
+
+        if colon_pos then
+            new_name = new_name:sub(colon_pos + 2) -- Extract part after ": "
+        end
+    end
+
+    -- Store context for deferred handling
+    M._pending_props_edit = {
+        workspace_edit = workspace_edit,
+        bufnr = bufnr,
+        props_info = props_info,
+        component_info = component_info,
+        destructure_info = destructure_info,
+        new_name = new_name,
+        cursor_context = (function()
+            local identifier_at_cursor = props_info.prop_name
+
+            if props_info.cursor_target == "alias" and destructure_info.current_alias then
+                identifier_at_cursor = destructure_info.current_alias
+            end
+
+            local offset = props.calculate_cursor_offset(bufnr, pos, identifier_at_cursor) or 0
+
+            return {
+                original_pos = pos,
+                offset_in_prop = offset,
+                original_window = vim.api.nvim_get_current_win(),
+            }
+        end)(),
+    }
+
+    -- Defer menu to after hook returns
+    vim.schedule(function()
+        M.show_deferred_props_menu()
+    end)
+
+    -- Return marker to skip original apply
+    return { _react_handled = true }
+end
+
+---@param pending table pending props edit context
+---@param offset_encoding string LSP offset encoding
+function M.apply_direct_from_workspace_edit(pending, offset_encoding)
+    local lsp_init = require("react.lsp")
+
+    -- Apply first edit (from inc-rename)
+    lsp_init._original_apply_workspace_edit(pending.workspace_edit, offset_encoding)
+
+    -- Wait for buffer to update, then do second rename
+    vim.schedule(function()
+        local alias_pos = props.find_alias_variable_position(
+            pending.component_info.bufnr or pending.bufnr,
+            pending.destructure_info.range,
+            pending.props_info.prop_name
+        )
+
+        if alias_pos then
+            local params = {
+                textDocument = {
+                    uri = vim.uri_from_bufnr(pending.component_info.bufnr or pending.bufnr),
+                },
+                position = alias_pos,
+                newName = pending.new_name,
+            }
+
+            vim.lsp.buf_request_all(
+                pending.component_info.bufnr or pending.bufnr,
+                "textDocument/rename",
+                params,
+                function(results)
+                    local second_edit = M.merge_workspace_edits(results)
+
+                    if not second_edit then
+                        log.debug("rename.inc", "No workspace edit returned from second rename")
+                        return
+                    end
+
+                    -- Apply second edit (creates { bar: bar })
+                    lsp_init._original_apply_workspace_edit(second_edit, offset_encoding)
+
+                    -- Convert { bar: bar } to { bar } after edit is applied
+                    vim.schedule(function()
+                        local target_bufnr = pending.component_info.bufnr or pending.bufnr
+                        props.convert_to_shorthand_in_buffer(target_bufnr, pending.new_name)
+
+                        -- Restore cursor position
+                        if pending.cursor_context then
+                            props.restore_cursor_position(
+                                target_bufnr,
+                                pending.cursor_context.original_window,
+                                pending.new_name,
+                                pending.cursor_context.original_pos,
+                                pending.cursor_context.offset_in_prop
+                            )
+                        end
+                    end)
+                end
+            )
+        end
+    end)
+end
+
+---@param pending table pending props edit context
+---@param offset_encoding string LSP offset encoding
+function M.apply_direct_from_destructure_inc_rename(pending, offset_encoding)
+    local lsp_init = require("react.lsp")
+    local target_bufnr = pending.component_info.bufnr or pending.bufnr
+
+    -- Apply first edit (from inc-rename)
+    lsp_init._original_apply_workspace_edit(pending.workspace_edit, offset_encoding)
+
+    -- Wait for buffer to update, then do second rename
+    vim.schedule(function()
+        local second_pos
+
+        if pending.props_info.cursor_target == "shorthand" then
+            -- Shorthand: after first rename { oldName: newName }
+            -- For inc-rename, we need to find the key position
+            -- since we don't have the original cursor position
+            second_pos = props.find_key_position(
+                target_bufnr,
+                pending.destructure_info.range,
+                pending.props_info.prop_name
+            )
+        elseif pending.props_info.cursor_target == "key" then
+            -- Key in pair: after first rename { newName: alias }
+            -- Find alias position
+            second_pos = props.find_alias_variable_position(
+                target_bufnr,
+                pending.destructure_info.range,
+                pending.destructure_info.current_alias
+            )
+        elseif pending.props_info.cursor_target == "alias" then
+            -- Alias in pair: after first rename { oldKey: newName }
+            -- Find key position
+            second_pos = props.find_key_position(
+                target_bufnr,
+                pending.destructure_info.range,
+                pending.props_info.prop_name
+            )
+        end
+
+        if second_pos then
+            local params = {
+                textDocument = {
+                    uri = vim.uri_from_bufnr(target_bufnr),
+                },
+                position = second_pos,
+                newName = pending.new_name,
+            }
+
+            vim.lsp.buf_request_all(target_bufnr, "textDocument/rename", params, function(results)
+                local second_edit = M.merge_workspace_edits(results)
+
+                if not second_edit then
+                    log.debug("rename.inc", "No workspace edit returned from second rename")
+                    return
+                end
+
+                -- Apply second edit (creates { newName: newName })
+                lsp_init._original_apply_workspace_edit(second_edit, offset_encoding)
+
+                -- Convert { newName: newName } to { newName }
+                vim.schedule(function()
+                    props.convert_to_shorthand_in_buffer(target_bufnr, pending.new_name)
+
+                    if pending.cursor_context then
+                        props.restore_cursor_position(
+                            target_bufnr,
+                            pending.cursor_context.original_window,
+                            pending.new_name,
+                            pending.cursor_context.original_pos,
+                            pending.cursor_context.offset_in_prop
+                        )
+                    end
+                end)
+            end)
+        end
+    end)
+end
+
+---@param pending table
+---@param offset_encoding string
+function M.apply_direct_from_body_inc_rename(pending, offset_encoding)
+    local lsp_init = require("react.lsp")
+    local target_bufnr = pending.component_info.bufnr or pending.bufnr
+
+    -- Apply first edit (from inc-rename, renames body + destructuring)
+    lsp_init._original_apply_workspace_edit(pending.workspace_edit, offset_encoding)
+
+    -- Wait for buffer to update, then do second rename on key
+    vim.schedule(function()
+        -- Find key position using original key name (from check_body_variable)
+        local second_pos = props.find_key_position(
+            target_bufnr,
+            pending.destructure_info.range,
+            pending.props_info.prop_name
+        )
+
+        if second_pos then
+            local params = {
+                textDocument = {
+                    uri = vim.uri_from_bufnr(target_bufnr),
+                },
+                position = second_pos,
+                newName = pending.new_name,
+            }
+
+            vim.lsp.buf_request_all(target_bufnr, "textDocument/rename", params, function(results)
+                local second_edit = M.merge_workspace_edits(results)
+
+                if not second_edit then
+                    log.debug("rename.inc", "No workspace edit returned from second rename")
+                    return
+                end
+
+                -- Apply second edit (creates { newName: newName })
+                lsp_init._original_apply_workspace_edit(second_edit, offset_encoding)
+
+                -- Convert { newName: newName } to { newName }
+                vim.schedule(function()
+                    props.convert_to_shorthand_in_buffer(target_bufnr, pending.new_name)
+
+                    -- Restore cursor position
+                    if pending.cursor_context then
+                        props.restore_cursor_position(
+                            target_bufnr,
+                            pending.cursor_context.original_window,
+                            pending.new_name,
+                            pending.cursor_context.original_pos,
+                            pending.cursor_context.offset_in_prop
+                        )
+                    end
+                end)
+            end)
+        end
+    end)
+end
+
+--- Show deferred props rename menu after renaming
+function M.show_deferred_props_menu()
+    local pending = M._pending_props_edit
+
+    if not pending then
+        return
+    end
+
+    M._pending_props_edit = nil
+
+    local clients = vim.lsp.get_clients({ bufnr = pending.bufnr })
+    local offset_encoding = clients[1] and clients[1].offset_encoding or "utf-16"
+    local lsp_init = require("react.lsp")
+
+    ui.show_rename_menu(
+        pending.props_info.prop_name,
+        pending.new_name,
+        pending.props_info.context,
+        function(choice)
+            -- Temporarily restore original apply_workspace_edit to avoid recursion
+            local current = vim.lsp.util.apply_workspace_edit
+            vim.lsp.util.apply_workspace_edit = lsp_init._original_apply_workspace_edit
+
+            if choice == "alias" then
+                vim.lsp.util.apply_workspace_edit(pending.workspace_edit, offset_encoding)
+
+                -- Restore cursor position for alias choice
+                -- When alias chosen: abc->xyz becomes { abc: xyz }
+                -- Key stays original name, cursor stays on key
+                vim.schedule(function()
+                    if pending.cursor_context then
+                        local target_bufnr = pending.component_info.bufnr or pending.bufnr
+
+                        props.restore_cursor_position(
+                            target_bufnr,
+                            pending.cursor_context.original_window,
+                            pending.props_info.prop_name, -- original name (still the key)
+                            pending.cursor_context.original_pos,
+                            pending.cursor_context.offset_in_prop
+                        )
+                    end
+                end)
+            else
+                if pending.props_info.context == "destructure" then
+                    M.apply_direct_from_destructure_inc_rename(pending, offset_encoding)
+                elseif pending.props_info.context == "body" then
+                    M.apply_direct_from_body_inc_rename(pending, offset_encoding)
+                else
+                    M.apply_direct_from_workspace_edit(pending, offset_encoding)
+                end
+            end
+
+            -- Restore hook
+            vim.lsp.util.apply_workspace_edit = current
+        end
+    )
 end
 
 return M
