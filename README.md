@@ -91,7 +91,7 @@ return {
 
 The plugin automatically enables when you open React files (`.jsx`, `.tsx`).
 
-Use your LSP rename function (typically `<leader>rn` or `:lua vim.lsp.buf.rename()`) on any useState variable:
+Use your LSP rename function on any useState variable:
 
 **Examples:**
 - Rename `count` → `num` automatically updates `setCount` → `setNum`
