@@ -37,11 +37,7 @@ function log.notify(scope, level, verbose, str, ...)
         end
     end
 
-    vim.notify(
-        string.format("[react.nvim@%s] %s", scope, string.format(str, ...)),
-        level,
-        { title = "react.nvim" }
-    )
+    vim.notify(string.format("[react.nvim@%s] %s", scope, string.format(str, ...)), level)
 end
 
 --- analyzes the user provided `setup` parameters and sends a message if they use a deprecated option, then gives the new option to use.
