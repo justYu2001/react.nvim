@@ -11,7 +11,7 @@ if #vim.api.nvim_list_uis() == 0 then
     vim.cmd("set rtp+=deps/nvim-treesitter")
 
     -- Install parsers for tests (blocking) - required for treesitter.lua queries
-    require("nvim-treesitter.install").install({ "javascript", "typescript" }):wait(60000)
+    require("nvim-treesitter.install").install({ "javascript", "typescript", "tsx" }):wait(60000)
 
     -- Set up 'mini.test'
     require("mini.test").setup()

@@ -58,6 +58,22 @@ Fields ~
 
 ==============================================================================
 ------------------------------------------------------------------------------
+                                                                     *M.setup()*
+                              `M.setup`({null_ls})
+Parameters ~
+{null_ls} `(table)` The null-ls module
+
+------------------------------------------------------------------------------
+                                                               *M.get_sources()*
+                           `M.get_sources`({null_ls})
+Parameters ~
+{null_ls} `(table)` The null-ls module
+Return ~
+`(table[])` List of source definitions
+
+
+==============================================================================
+------------------------------------------------------------------------------
                                                                     *M.rename()*
                          `M.rename`({new_name}, {opts})
 Enhanced rename with useState setter/state auto-renaming

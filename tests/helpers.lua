@@ -1,4 +1,24 @@
 -- imported from https://github.com/echasnovski/mini.nvim
+vim.treesitter.language.register("tsx", "typescriptreact")
+
+-- Shim vim.treesitter.get_node to ignore injections by default in tests
+local original_get_node = vim.treesitter.get_node
+vim.treesitter.get_node = function(opts)
+    opts = opts or {}
+    -- Force parse if buffer is provided
+    if opts.bufnr then
+        local ok, parser = pcall(vim.treesitter.get_parser, opts.bufnr)
+        if ok and parser then
+            parser:parse()
+        end
+    end
+    -- Force ignore_injections to true unless explicitly provided
+    if opts.ignore_injections == nil then
+        opts.ignore_injections = true
+    end
+    return original_get_node(opts)
+end
+
 local Helpers = {}
 
 -- Add extra expectations

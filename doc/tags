@@ -8,6 +8,7 @@ M.find_references()	react.txt	/*M.find_references()*
 M.find_use_state_at_cursor()	react.txt	/*M.find_use_state_at_cursor()*
 M.get_node_at_cursor()	react.txt	/*M.get_node_at_cursor()*
 M.get_rename_context()	react.txt	/*M.get_rename_context()*
+M.get_sources()	react.txt	/*M.get_sources()*
 M.has_parser()	react.txt	/*M.has_parser()*
 M.is_setter_variable()	react.txt	/*M.is_setter_variable()*
 M.is_state_variable()	react.txt	/*M.is_state_variable()*
@@ -15,6 +16,7 @@ M.merge_workspace_edits()	react.txt	/*M.merge_workspace_edits()*
 M.prepare_secondary_from_edit()	react.txt	/*M.prepare_secondary_from_edit()*
 M.prepare_secondary_rename()	react.txt	/*M.prepare_secondary_rename()*
 M.rename()	react.txt	/*M.rename()*
+M.setup()	react.txt	/*M.setup()*
 M.try_add_use_state_edits()	react.txt	/*M.try_add_use_state_edits()*
 React.disable()	react.txt	/*React.disable()*
 React.enable()	react.txt	/*React.enable()*
