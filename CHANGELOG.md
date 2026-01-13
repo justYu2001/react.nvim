@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/justYu2001/react.nvim/compare/v0.2.0...v0.3.0) (2026-01-13)
+
+
+### Features
+
+* **code-action:** add undefined variable to props ([#6](https://github.com/justYu2001/react.nvim/issues/6)) ([0881d5e](https://github.com/justYu2001/react.nvim/commit/0881d5e3811511289ce2d6dbeb56d5c708e31ce8))
+
 ## [0.2.0](https://github.com/justYu2001/react.nvim/compare/v0.1.0...v0.2.0) (2026-01-10)
 
 
