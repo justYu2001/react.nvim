@@ -12,6 +12,32 @@ vim.api.nvim_create_autocmd("BufEnter", {
     end,
 })
 
+vim.api.nvim_create_autocmd("User", {
+    pattern = "VeryLazy",
+    once = true,
+    callback = function()
+        local ok, null_ls = pcall(require, "null-ls")
+
+        if ok then
+            require("react.code_actions").setup(null_ls)
+        end
+    end,
+})
+
+-- Fallback registration via VimEnter (if VeryLazy didn't fire)
+vim.api.nvim_create_autocmd("VimEnter", {
+    once = true,
+    callback = function()
+        vim.schedule(function()
+            local ok, null_ls = pcall(require, "null-ls")
+
+            if ok then
+                require("react.code_actions").setup(null_ls)
+            end
+        end)
+    end,
+})
+
 vim.api.nvim_create_user_command("React", function(opts)
     local react = require("react")
     local arg = opts.args
