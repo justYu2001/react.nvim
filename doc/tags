@@ -30,6 +30,7 @@ M.find_type_name_for_node()	react.txt	/*M.find_type_name_for_node()*
 M.find_use_state_at_cursor()	react.txt	/*M.find_use_state_at_cursor()*
 M.get_node_at_cursor()	react.txt	/*M.get_node_at_cursor()*
 M.get_rename_context()	react.txt	/*M.get_rename_context()*
+M.get_source()	react.txt	/*M.get_source()*
 M.get_sources()	react.txt	/*M.get_sources()*
 M.handle_props_workspace_edit()	react.txt	/*M.handle_props_workspace_edit()*
 M.has_parser()	react.txt	/*M.has_parser()*
@@ -49,3 +50,15 @@ React.enable()	react.txt	/*React.enable()*
 React.options	react.txt	/*React.options*
 React.setup()	react.txt	/*React.setup()*
 React.toggle()	react.txt	/*React.toggle()*
+apply_edits()	react.txt	/*apply_edits()*
+create_prop_edits()	react.txt	/*create_prop_edits()*
+extract_component_name()	react.txt	/*extract_component_name()*
+extract_type_from_annotation()	react.txt	/*extract_type_from_annotation()*
+find_component_from_jsx_element()	react.txt	/*find_component_from_jsx_element()*
+find_function_declaration()	react.txt	/*find_function_declaration()*
+find_variable_declaration()	react.txt	/*find_variable_declaration()*
+get_undefined_prop_at_cursor()	react.txt	/*get_undefined_prop_at_cursor()*
+infer_type()	react.txt	/*infer_type()*
+infer_type_from_literal()	react.txt	/*infer_type_from_literal()*
+infer_type_from_lsp_hover()	react.txt	/*infer_type_from_lsp_hover()*
+infer_type_from_variable_declaration()	react.txt	/*infer_type_from_variable_declaration()*

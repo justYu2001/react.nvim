@@ -22,6 +22,7 @@ end
 function M.get_sources(null_ls)
     return {
         require("react.code_actions.add_to_props").get_source(null_ls),
+        require("react.code_actions.introduce_props").get_source(null_ls),
     }
 end
 

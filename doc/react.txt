@@ -74,6 +74,127 @@ Return ~
 
 ==============================================================================
 ------------------------------------------------------------------------------
+                                                *get_undefined_prop_at_cursor()*
+                    `get_undefined_prop_at_cursor`({params})
+Parameters ~
+{params} `(table)` null-ls params
+Return ~
+`(table|nil)` {prop_name: string, jsx_element_node: TSNode, value_node: TSNode}
+
+------------------------------------------------------------------------------
+                                                      *extract_component_name()*
+             `extract_component_name`({bufnr}, {jsx_element_node})
+Parameters ~
+{bufnr} `(number)`
+{jsx_element_node} `(TSNode)`
+Return ~
+`(string|nil)` component name
+
+------------------------------------------------------------------------------
+                                             *find_component_from_jsx_element()*
+         `find_component_from_jsx_element`({bufnr}, {jsx_element_node})
+Find component definition from JSX element
+Parameters ~
+{bufnr} `(number)`
+{jsx_element_node} `(TSNode)`
+Return ~
+`(table|nil)` {bufnr: number, component_node: TSNode, file_path: string}
+
+------------------------------------------------------------------------------
+                                                     *infer_type_from_literal()*
+                    `infer_type_from_literal`({value_node})
+Parameters ~
+{value_node} `(TSNode|nil)`
+Return ~
+`(string)` inferred type
+
+------------------------------------------------------------------------------
+                                                *extract_type_from_annotation()*
+        `extract_type_from_annotation`({type_annotation_node}, {bufnr})
+Parameters ~
+{type_annotation_node} `(TSNode)`
+{bufnr} `(number)`
+Return ~
+`(string|nil)` type string or nil
+
+------------------------------------------------------------------------------
+                                                   *find_variable_declaration()*
+     `find_variable_declaration`({bufnr}, {identifier_name}, {start_node})
+Parameters ~
+{bufnr} `(number)`
+{identifier_name} `(string)`
+{start_node} `(TSNode)`
+Return ~
+`(TSNode|nil)` variable_declarator node or nil
+
+------------------------------------------------------------------------------
+                                                   *find_function_declaration()*
+      `find_function_declaration`({bufnr}, {function_name}, {start_node})
+Parameters ~
+{bufnr} `(number)`
+{function_name} `(string)`
+{start_node} `(TSNode)`
+Return ~
+`(TSNode|nil)` function node with return type or nil
+
+------------------------------------------------------------------------------
+                                        *infer_type_from_variable_declaration()*
+     `infer_type_from_variable_declaration`({bufnr}, {value_node}, {depth})
+Parameters ~
+{bufnr} `(number)`
+{value_node} `(TSNode)`
+{depth} `(number|nil)` recursion depth (default 0)
+Return ~
+`(string|nil)` inferred type or nil
+
+------------------------------------------------------------------------------
+                                                   *infer_type_from_lsp_hover()*
+               `infer_type_from_lsp_hover`({bufnr}, {value_node})
+Parameters ~
+{bufnr} `(number)`
+{value_node} `(TSNode)`
+Return ~
+`(string|nil)` inferred type or nil
+
+------------------------------------------------------------------------------
+                                                                  *infer_type()*
+                      `infer_type`({bufnr}, {value_node})
+Parameters ~
+{bufnr} `(number)`
+{value_node} `(TSNode|nil)`
+Return ~
+`(string)` inferred type
+
+------------------------------------------------------------------------------
+                                                           *create_prop_edits()*
+  `create_prop_edits`({target_bufnr}, {comp_params}, {prop_name}, {prop_type})
+Parameters ~
+{target_bufnr} `(number)` buffer where component is defined
+{comp_params} `(table)` component params info
+{prop_name} `(string)`
+{prop_type} `(string)`
+Return ~
+`(table[])` edits
+
+------------------------------------------------------------------------------
+                                                                 *apply_edits()*
+                        `apply_edits`({bufnr}, {edits})
+Parameters ~
+{bufnr} `(number)`
+{edits} `(table[])`
+
+------------------------------------------------------------------------------
+                                                                *M.get_source()*
+                           `M.get_source`({null_ls})
+Get null-ls source
+Parameters ~
+{null_ls} `(table)`
+Return ~
+`(table)` source definition
+
+
+==============================================================================
+------------------------------------------------------------------------------
                                                                     *M.rename()*
                          `M.rename`({new_name}, {opts})
 Enhanced rename with useState setter/state auto-renaming

@@ -732,5 +732,6 @@ M.create_type_edit = create_type_edit
 M.extract_component_name = extract_component_name
 M.create_no_params_destructuring_edit = create_no_params_destructuring_edit
 M.create_interface_edit = create_interface_edit
+M.find_type_declaration = find_type_declaration
 
 return M

@@ -497,7 +497,7 @@ function M.find_type_name_for_node(node)
     while current do
         local node_type = current:type()
         -- Check for interface or type alias declaration
-    --
+
         if node_type == "interface_declaration" or node_type == "type_alias_declaration" then
             -- Find the name child
             for child in current:iter_children() do
