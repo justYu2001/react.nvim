@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/justYu2001/react.nvim/compare/v0.3.0...v0.4.0) (2026-01-16)
+
+
+### Features
+
+* add direct/alias choice menu for props rename ([#8](https://github.com/justYu2001/react.nvim/issues/8)) ([1a4aad2](https://github.com/justYu2001/react.nvim/commit/1a4aad2d88f5696abb1e4ad09e44d2e6e50deabb))
+
 ## [0.3.0](https://github.com/justYu2001/react.nvim/compare/v0.2.0...v0.3.0) (2026-01-13)
 
 
