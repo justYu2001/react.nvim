@@ -80,6 +80,103 @@ T["find_component_params"]["detects no params"] = function()
     vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+T["find_component_params"]["skips helper inside PascalCase component"] = function()
+    local bufnr = create_tsx_buffer({
+        "function MyComponent() {",
+        "  function helper() {",
+        "    const x = 1;",
+        "  }",
+        "  return <div />;",
+        "}",
+    })
+
+    local result = add_to_props.find_component_params(bufnr, 2, 4)
+    assert(result)
+    eq(result.type, "no_params")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_params"]["skips helper inside arrow component with JSX"] = function()
+    local bufnr = create_tsx_buffer({
+        "const MyComponent = () => {",
+        "  const helper = () => {",
+        "    return 42;",
+        "  };",
+        "  return <div />;",
+        "}",
+    })
+
+    local result = add_to_props.find_component_params(bufnr, 2, 4)
+    assert(result)
+    eq(result.type, "no_params")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_params"]["skips nested helpers (2 levels deep)"] = function()
+    local bufnr = create_tsx_buffer({
+        "function MyComponent({ foo }) {",
+        "  function helper1() {",
+        "    function helper2() {",
+        "      const x = 1;",
+        "    }",
+        "  }",
+        "  return <div />;",
+        "}",
+    })
+
+    local result = add_to_props.find_component_params(bufnr, 3, 6)
+    assert(result)
+    eq(result.type, "destructured")
+    eq(result.pattern_node ~= nil, true)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_params"]["detects PascalCase function without JSX"] = function()
+    local bufnr = create_tsx_buffer({
+        "function MyComponent() {",
+        "  const x = 1;",
+        "  return null;",
+        "}",
+    })
+
+    local result = add_to_props.find_component_params(bufnr, 1, 2)
+    assert(result)
+    eq(result.type, "no_params")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_params"]["detects lowercase function WITH JSX"] = function()
+    local bufnr = create_tsx_buffer({
+        "function myComponent() {",
+        "  return <div />;",
+        "}",
+    })
+
+    local result = add_to_props.find_component_params(bufnr, 1, 2)
+    assert(result)
+    eq(result.type, "no_params")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_params"]["returns nil for lowercase function WITHOUT JSX"] = function()
+    local bufnr = create_tsx_buffer({
+        "function helper() {",
+        "  const x = 1;",
+        "  return x + 1;",
+        "}",
+    })
+
+    local result = add_to_props.find_component_params(bufnr, 1, 2)
+    eq(result, nil)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
 -- Test already_in_destructuring
 T["already_in_destructuring"] = new_set()
 
