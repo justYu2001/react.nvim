@@ -1,5 +1,6 @@
 local helpers = require("tests.helpers")
 local use_state = require("react.lsp.rename.use_state")
+local utils = require("react.lsp.rename.utils")
 
 local expect, eq = helpers.expect, helpers.expect.equality
 local new_set = MiniTest.new_set
@@ -144,7 +145,7 @@ T["check_conflict"]["detects existing identifier"] = function()
         { "const existing = 1", "const [count, setCount] = useState(0)" }
     )
 
-    local has_conflict = use_state.check_conflict(bufnr, "existing")
+    local has_conflict = utils.check_conflict(bufnr, "existing")
     eq(has_conflict, true)
 
     vim.api.nvim_buf_delete(bufnr, { force = true })
@@ -154,7 +155,7 @@ T["check_conflict"]["returns false when no conflict"] = function()
     local bufnr = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "const [count, setCount] = useState(0)" })
 
-    local has_conflict = use_state.check_conflict(bufnr, "newName")
+    local has_conflict = utils.check_conflict(bufnr, "newName")
     eq(has_conflict, false)
 
     vim.api.nvim_buf_delete(bufnr, { force = true })

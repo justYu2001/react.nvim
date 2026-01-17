@@ -2,7 +2,9 @@ M.add_secondary_edits()	react.txt	/*M.add_secondary_edits()*
 M.apply_direct_from_body_inc_rename()	react.txt	/*M.apply_direct_from_body_inc_rename()*
 M.apply_direct_from_destructure_inc_rename()	react.txt	/*M.apply_direct_from_destructure_inc_rename()*
 M.apply_direct_from_workspace_edit()	react.txt	/*M.apply_direct_from_workspace_edit()*
+M.calculate_component_name()	react.txt	/*M.calculate_component_name()*
 M.calculate_cursor_offset()	react.txt	/*M.calculate_cursor_offset()*
+M.calculate_props_type_name()	react.txt	/*M.calculate_props_type_name()*
 M.calculate_secondary_from_primary()	react.txt	/*M.calculate_secondary_from_primary()*
 M.calculate_setter_name()	react.txt	/*M.calculate_setter_name()*
 M.calculate_state_name()	react.txt	/*M.calculate_state_name()*
@@ -34,11 +36,12 @@ M.get_source()	react.txt	/*M.get_source()*
 M.get_sources()	react.txt	/*M.get_sources()*
 M.handle_props_workspace_edit()	react.txt	/*M.handle_props_workspace_edit()*
 M.has_parser()	react.txt	/*M.has_parser()*
+M.is_component_name()	react.txt	/*M.is_component_name()*
+M.is_props_type_name()	react.txt	/*M.is_props_type_name()*
 M.is_setter_variable()	react.txt	/*M.is_setter_variable()*
 M.is_state_variable()	react.txt	/*M.is_state_variable()*
+M.is_type_shared()	react.txt	/*M.is_type_shared()*
 M.merge_workspace_edits()	react.txt	/*M.merge_workspace_edits()*
-M.prepare_secondary_from_edit()	react.txt	/*M.prepare_secondary_from_edit()*
-M.prepare_secondary_rename()	react.txt	/*M.prepare_secondary_rename()*
 M.rename()	react.txt	/*M.rename()*
 M.restore_cursor_position()	react.txt	/*M.restore_cursor_position()*
 M.setup()	react.txt	/*M.setup()*
@@ -51,6 +54,8 @@ React.options	react.txt	/*React.options*
 React.setup()	react.txt	/*React.setup()*
 React.toggle()	react.txt	/*React.toggle()*
 apply_edits()	react.txt	/*apply_edits()*
+component_props.prepare_secondary_from_edit()	react.txt	/*component_props.prepare_secondary_from_edit()*
+component_props.prepare_secondary_rename()	react.txt	/*component_props.prepare_secondary_rename()*
 create_prop_edits()	react.txt	/*create_prop_edits()*
 extract_component_name()	react.txt	/*extract_component_name()*
 extract_type_from_annotation()	react.txt	/*extract_type_from_annotation()*
@@ -62,3 +67,5 @@ infer_type()	react.txt	/*infer_type()*
 infer_type_from_literal()	react.txt	/*infer_type_from_literal()*
 infer_type_from_lsp_hover()	react.txt	/*infer_type_from_lsp_hover()*
 infer_type_from_variable_declaration()	react.txt	/*infer_type_from_variable_declaration()*
+use_state.prepare_secondary_from_edit()	react.txt	/*use_state.prepare_secondary_from_edit()*
+use_state.prepare_secondary_rename()	react.txt	/*use_state.prepare_secondary_rename()*

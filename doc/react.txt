@@ -271,6 +271,71 @@ Show deferred props rename menu after renaming
 
 ==============================================================================
 ------------------------------------------------------------------------------
+                                                 *M.calculate_props_type_name()*
+                `M.calculate_props_type_name`({component_name})
+Parameters ~
+{component_name} `(string)`: component name
+Return ~
+`(string)`: props type name
+
+------------------------------------------------------------------------------
+                                                  *M.calculate_component_name()*
+                `M.calculate_component_name`({props_type_name})
+Parameters ~
+{props_type_name} `(string)`: props type name
+Return ~
+`(string|nil)`: component name or nil if not matching pattern
+
+------------------------------------------------------------------------------
+                                                         *M.is_component_name()*
+                     `M.is_component_name`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: {is_component: bool, component_name: string, props_type_name: string, type_location: table|nil}
+
+------------------------------------------------------------------------------
+                                                        *M.is_props_type_name()*
+                     `M.is_props_type_name`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: {is_props_type: bool, component_name: string, props_type_name: string, component_location: table|nil}
+
+------------------------------------------------------------------------------
+                                                            *M.is_type_shared()*
+                    `M.is_type_shared`({bufnr}, {type_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{type_name} `(string)`: type name to check
+Return ~
+`(boolean)`: true if type is used by multiple components
+
+------------------------------------------------------------------------------
+                                    *component_props.prepare_secondary_rename()*
+            `M.prepare_secondary_rename`({bufnr}, {pos}, {new_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+{new_name} `(string)`: new name for primary symbol
+Return ~
+`(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
+
+------------------------------------------------------------------------------
+                                 *component_props.prepare_secondary_from_edit()*
+       `M.prepare_secondary_from_edit`({bufnr}, {pos}, {workspace_edit})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+{workspace_edit} `(table)`: workspace edit from LSP
+Return ~
+`(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
+
+
+==============================================================================
+------------------------------------------------------------------------------
                                                      *M.detect_prop_at_cursor()*
                    `M.detect_prop_at_cursor`({bufnr}, {pos})
 Parameters ~
@@ -516,24 +581,6 @@ Return ~
 `(table)`: {is_setter: bool, state_name: string, setter_name: string}
 
 ------------------------------------------------------------------------------
-                                                           *M.find_references()*
-                  `M.find_references`({bufnr}, {symbol_name})
-Parameters ~
-{bufnr} `(number)`: buffer number
-{symbol_name} `(string)`: symbol to find
-Return ~
-`(table[])`: array of LSP-like Location objects
-
-------------------------------------------------------------------------------
-                                                            *M.check_conflict()*
-                    `M.check_conflict`({bufnr}, {new_name})
-Parameters ~
-{bufnr} `(number)`: buffer number
-{new_name} `(string)`: proposed new name
-Return ~
-`(boolean)`: true if conflict exists
-
-------------------------------------------------------------------------------
                                                         *M.get_rename_context()*
                      `M.get_rename_context`({bufnr}, {pos})
 Parameters ~
@@ -552,7 +599,7 @@ Return ~
 `(string|nil)`: secondary name
 
 ------------------------------------------------------------------------------
-                                                  *M.prepare_secondary_rename()*
+                                          *use_state.prepare_secondary_rename()*
             `M.prepare_secondary_rename`({bufnr}, {pos}, {new_name})
 Parameters ~
 {bufnr} `(number)`: buffer number
@@ -562,7 +609,7 @@ Return ~
 `(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
 
 ------------------------------------------------------------------------------
-                                               *M.prepare_secondary_from_edit()*
+                                       *use_state.prepare_secondary_from_edit()*
        `M.prepare_secondary_from_edit`({bufnr}, {pos}, {workspace_edit})
 Parameters ~
 {bufnr} `(number)`: buffer number
@@ -580,6 +627,24 @@ Parameters ~
 {workspace_edit} `(table)`: workspace edit from LSP
 Return ~
 `(string|nil)`: new name from first edit
+
+------------------------------------------------------------------------------
+                                                           *M.find_references()*
+                  `M.find_references`({bufnr}, {symbol_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{symbol_name} `(string)`: symbol to find
+Return ~
+`(table[])`: array of LSP-like Location objects
+
+------------------------------------------------------------------------------
+                                                            *M.check_conflict()*
+                    `M.check_conflict`({bufnr}, {new_name})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{new_name} `(string)`: proposed new name
+Return ~
+`(boolean)`: true if conflict exists
 
 
 ==============================================================================
