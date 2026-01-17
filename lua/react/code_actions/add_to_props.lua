@@ -106,6 +106,58 @@ local function extract_component_name(bufnr, function_node)
     return nil
 end
 
+local function is_pascal_case(name)
+    return name ~= nil and name:match("^[A-Z]") ~= nil
+end
+
+local function get_function_name(bufnr, function_node)
+    -- Check function_declaration name
+    for child in function_node:iter_children() do
+        if child:type() == "identifier" then
+            return vim.treesitter.get_node_text(child, bufnr)
+        end
+    end
+
+    -- Check variable assignment (const Foo = () => {})
+    return extract_component_name(bufnr, function_node)
+end
+
+local function has_jsx_return(_bufnr, function_node)
+    local function check_node(node)
+        local type = node:type()
+
+        if
+            type == "jsx_element"
+            or type == "jsx_self_closing_element"
+            or type == "jsx_fragment"
+        then
+            return true
+        end
+
+        for child in node:iter_children() do
+            if check_node(child) then
+                return true
+            end
+        end
+
+        return false
+    end
+
+    return check_node(function_node)
+end
+
+local function is_react_component(bufnr, function_node)
+    -- Check JSX return (primary signal)
+    if has_jsx_return(bufnr, function_node) then
+        return true
+    end
+
+    -- Check PascalCase naming convention
+    local name = get_function_name(bufnr, function_node)
+
+    return is_pascal_case(name)
+end
+
 local function find_component_params(bufnr, row, col)
     local node = vim.treesitter.get_node({ bufnr = bufnr, pos = { row, col } })
 
@@ -125,6 +177,12 @@ local function find_component_params(bufnr, row, col)
             or type == "function"
             or type == "function_expression"
         then
+            -- Check if this is a React component
+            if not is_react_component(bufnr, current) then
+                current = current:parent()
+                goto continue
+            end
+
             -- Get formal_parameters
             local params_node = nil
 
@@ -183,6 +241,7 @@ local function find_component_params(bufnr, row, col)
             return nil
         end
 
+        ::continue::
         current = current:parent()
     end
 
