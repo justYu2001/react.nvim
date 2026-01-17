@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/justYu2001/react.nvim/compare/v0.4.0...v0.5.0) (2026-01-17)
+
+
+### Features
+
+* event handler props fallback to `() => void` ([#12](https://github.com/justYu2001/react.nvim/issues/12)) ([bdaee86](https://github.com/justYu2001/react.nvim/commit/bdaee86d4f6db9eb243e06a2870900bc5539567e))
+* implement 'introduce prop' code action ([#10](https://github.com/justYu2001/react.nvim/issues/10)) ([34dd753](https://github.com/justYu2001/react.nvim/commit/34dd753b786e8e47069eb7aa8de1b1faf0519683))
+
+
+### Bug Fixes
+
+* add props skips helpers ([#13](https://github.com/justYu2001/react.nvim/issues/13)) ([48d59e0](https://github.com/justYu2001/react.nvim/commit/48d59e0378ef522a8faf2f2c765235c1b30b9972))
+
 ## [0.4.0](https://github.com/justYu2001/react.nvim/compare/v0.3.0...v0.4.0) (2026-01-16)
 
 
