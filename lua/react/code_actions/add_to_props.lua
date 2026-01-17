@@ -13,6 +13,10 @@ local function get_line_indent(bufnr, row)
     return indent or ""
 end
 
+local function is_event_handler_prop(name)
+    return name:match("^on[A-Z]") ~= nil
+end
+
 local function get_undefined_var_at_cursor(params)
     local bufnr = params.bufnr
     local row = params.row - 1
@@ -536,12 +540,24 @@ local function apply_edits(bufnr, edits)
                 local expand_row = snippet_edit.row + 1
                 local expand_col = #indent + #var_name
 
-                local snip = s("", {
-                    t("?"),
-                    i(1),
-                    t(": "),
-                    i(2, "unknown"),
-                })
+                local snip
+                if is_event_handler_prop(var_name) then
+                    snip = s("", {
+                        t("?"),
+                        i(1),
+                        t(": ("),
+                        i(2),
+                        t(") => "),
+                        i(3, "void"),
+                    })
+                else
+                    snip = s("", {
+                        t("?"),
+                        i(1),
+                        t(": "),
+                        i(2, "unknown"),
+                    })
+                end
 
                 luasnip.snip_expand(snip, { pos = { expand_row, expand_col } })
             end)
@@ -551,7 +567,8 @@ local function apply_edits(bufnr, edits)
             -- Fallback: insert text and position cursor at type location
             local var_name = snippet_edit.snippet.var_name
             local indent = snippet_edit.snippet.indent
-            local text = string.format("\n%s%s?: ", indent, var_name)
+            local type_placeholder = is_event_handler_prop(var_name) and "() => void" or "unknown"
+            local text = string.format("\n%s%s?: %s", indent, var_name, type_placeholder)
 
             vim.api.nvim_buf_set_text(
                 bufnr,
@@ -561,7 +578,10 @@ local function apply_edits(bufnr, edits)
                 snippet_edit.col,
                 vim.split(text, "\n")
             )
-            vim.api.nvim_win_set_cursor(0, { snippet_edit.row + 2, #indent + #var_name + 3 })
+
+            local col_offset = is_event_handler_prop(var_name) and #indent + #var_name + 4
+                or #indent + #var_name + 3
+            vim.api.nvim_win_set_cursor(0, { snippet_edit.row + 2, col_offset })
             vim.cmd("startinsert")
         end
     end
@@ -733,5 +753,6 @@ M.extract_component_name = extract_component_name
 M.create_no_params_destructuring_edit = create_no_params_destructuring_edit
 M.create_interface_edit = create_interface_edit
 M.find_type_declaration = find_type_declaration
+M.is_event_handler_prop = is_event_handler_prop
 
 return M

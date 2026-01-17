@@ -424,4 +424,37 @@ T["create_interface_edit"]["respects indentation"] = function()
     vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+-- Test is_event_handler_prop
+T["is_event_handler_prop"] = new_set()
+
+T["is_event_handler_prop"]["standard handlers"] = function()
+    eq(add_to_props.is_event_handler_prop("onClick"), true)
+    eq(add_to_props.is_event_handler_prop("onChange"), true)
+    eq(add_to_props.is_event_handler_prop("onSubmit"), true)
+    eq(add_to_props.is_event_handler_prop("onFocus"), true)
+    eq(add_to_props.is_event_handler_prop("onBlur"), true)
+    eq(add_to_props.is_event_handler_prop("onKeyDown"), true)
+    eq(add_to_props.is_event_handler_prop("onMouseEnter"), true)
+end
+
+T["is_event_handler_prop"]["custom handlers"] = function()
+    eq(add_to_props.is_event_handler_prop("onCustomEvent"), true)
+    eq(add_to_props.is_event_handler_prop("onValidate"), true)
+end
+
+T["is_event_handler_prop"]["non-handlers"] = function()
+    eq(add_to_props.is_event_handler_prop("userName"), false)
+    eq(add_to_props.is_event_handler_prop("value"), false)
+    eq(add_to_props.is_event_handler_prop("count"), false)
+    eq(add_to_props.is_event_handler_prop("isActive"), false)
+end
+
+T["is_event_handler_prop"]["edge cases"] = function()
+    eq(add_to_props.is_event_handler_prop("ontology"), false)
+    eq(add_to_props.is_event_handler_prop("online"), false)
+    eq(add_to_props.is_event_handler_prop("only"), false)
+    eq(add_to_props.is_event_handler_prop("on"), false)
+    eq(add_to_props.is_event_handler_prop("onA"), true) -- Has uppercase after 'on'
+end
+
 return T

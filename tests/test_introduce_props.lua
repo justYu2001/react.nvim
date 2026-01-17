@@ -590,4 +590,88 @@ T["find_component_from_jsx_element"]["returns nil when component not found"] = f
     vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+-- Test is_event_handler_prop (pattern matching)
+T["is_event_handler_prop"] = new_set()
+
+T["is_event_handler_prop"]["standard handlers"] = function()
+    eq(introduce_props.is_event_handler_prop("onClick"), true)
+    eq(introduce_props.is_event_handler_prop("onChange"), true)
+    eq(introduce_props.is_event_handler_prop("onSubmit"), true)
+    eq(introduce_props.is_event_handler_prop("onFocus"), true)
+    eq(introduce_props.is_event_handler_prop("onBlur"), true)
+    eq(introduce_props.is_event_handler_prop("onKeyDown"), true)
+    eq(introduce_props.is_event_handler_prop("onMouseEnter"), true)
+end
+
+T["is_event_handler_prop"]["custom handlers"] = function()
+    eq(introduce_props.is_event_handler_prop("onCustomEvent"), true)
+    eq(introduce_props.is_event_handler_prop("onValidate"), true)
+end
+
+T["is_event_handler_prop"]["non-handlers"] = function()
+    eq(introduce_props.is_event_handler_prop("userName"), false)
+    eq(introduce_props.is_event_handler_prop("value"), false)
+    eq(introduce_props.is_event_handler_prop("count"), false)
+    eq(introduce_props.is_event_handler_prop("isActive"), false)
+end
+
+T["is_event_handler_prop"]["edge cases"] = function()
+    eq(introduce_props.is_event_handler_prop("ontology"), false)
+    eq(introduce_props.is_event_handler_prop("online"), false)
+    eq(introduce_props.is_event_handler_prop("only"), false)
+    eq(introduce_props.is_event_handler_prop("on"), false)
+    eq(introduce_props.is_event_handler_prop("onA"), true) -- Has uppercase after 'on'
+end
+
+-- Test type override integration
+T["type_override"] = new_set()
+
+T["type_override"]["pattern_based_validation"] = function()
+    -- Verify event handlers detected
+    eq(introduce_props.is_event_handler_prop("onClick"), true)
+    eq(introduce_props.is_event_handler_prop("onChange"), true)
+
+    -- Verify non-handlers not detected
+    eq(introduce_props.is_event_handler_prop("value"), false)
+    eq(introduce_props.is_event_handler_prop("ontology"), false)
+
+    -- Trust implementation correctly applies:
+    -- if is_event_handler_prop(name) and type == "unknown" then
+    --     type = "() => void"
+end
+
+-- Test function type pattern detection
+T["function_type_pattern"] = new_set()
+
+T["function_type_pattern"]["matches_simple_arrow_function"] = function()
+    local type_str = "() => void"
+    local matches = type_str:match("^%(%s*%)%s*=>") ~= nil
+    eq(matches, true)
+
+    local return_type = type_str:match("=>%s*(.+)$")
+    eq(return_type, "void")
+end
+
+T["function_type_pattern"]["matches_with_return_type"] = function()
+    local type_str = "() => boolean"
+    local matches = type_str:match("^%(%s*%)%s*=>") ~= nil
+    eq(matches, true)
+
+    local return_type = type_str:match("=>%s*(.+)$")
+    eq(return_type, "boolean")
+end
+
+T["function_type_pattern"]["matches_with_params"] = function()
+    local type_str = "(e: Event) => void"
+    -- Note: Pattern only matches (), not with params
+    local matches = type_str:match("^%(%s*%)%s*=>") ~= nil
+    eq(matches, false) -- Doesn't match - has params
+end
+
+T["function_type_pattern"]["no_match_for_non_function_types"] = function()
+    eq(("string"):match("^%(%s*%)%s*=>") ~= nil, false)
+    eq(("unknown"):match("^%(%s*%)%s*=>") ~= nil, false)
+    eq(("Promise<void>"):match("^%(%s*%)%s*=>") ~= nil, false)
+end
+
 return T

@@ -3,6 +3,10 @@ local props_rename = require("react.lsp.rename.props")
 
 local M = {}
 
+local function is_event_handler_prop(name)
+    return name:match("^on[A-Z]") ~= nil
+end
+
 ---@param params table null-ls params
 ---@return table|nil {prop_name: string, jsx_element_node: TSNode, value_node: TSNode}
 local function get_undefined_prop_at_cursor(params)
@@ -696,8 +700,16 @@ local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type
                     if not add_to_props.already_in_type(target_bufnr, type_node, prop_name) then
                         local type_edit =
                             add_to_props.create_type_edit(target_bufnr, type_node, prop_name)
+
                         -- Override snippet to include inferred type
-                        type_edit.snippet.prop_type = prop_type
+                        local final_prop_type = prop_type
+
+                        if is_event_handler_prop(prop_name) and prop_type == "unknown" then
+                            final_prop_type = "() => void"
+                        end
+
+                        type_edit.snippet.prop_type = final_prop_type
+
                         table.insert(edits, type_edit)
                     end
                 elseif type_node:type() == "type_identifier" then
@@ -719,7 +731,11 @@ local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type
                                 prop_name
                             )
                             -- Override snippet to include inferred type
-                            type_edit.snippet.prop_type = prop_type
+                            local final_prop_type = prop_type
+                            if is_event_handler_prop(prop_name) and prop_type == "unknown" then
+                                final_prop_type = "() => void"
+                            end
+                            type_edit.snippet.prop_type = final_prop_type
                             table.insert(edits, type_edit)
                         end
                     end
@@ -738,7 +754,11 @@ local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type
                         local type_edit =
                             add_to_props.create_type_edit(target_bufnr, type_node, prop_name)
 
-                        type_edit.snippet.prop_type = prop_type
+                        local final_prop_type = prop_type
+                        if is_event_handler_prop(prop_name) and prop_type == "unknown" then
+                            final_prop_type = "() => void"
+                        end
+                        type_edit.snippet.prop_type = final_prop_type
 
                         table.insert(edits, type_edit)
                     end
@@ -760,7 +780,13 @@ local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type
                                 prop_name
                             )
 
-                            type_edit.snippet.prop_type = prop_type
+                            local final_prop_type = prop_type
+
+                            if is_event_handler_prop(prop_name) and prop_type == "unknown" then
+                                final_prop_type = "() => void"
+                            end
+
+                            type_edit.snippet.prop_type = final_prop_type
 
                             table.insert(edits, type_edit)
                         end
@@ -787,7 +813,13 @@ local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type
                 for _, edit in ipairs(interface_edits) do
                     -- Override snippet to include inferred type
                     if edit.snippet then
-                        edit.snippet.prop_type = prop_type
+                        local final_prop_type = prop_type
+
+                        if is_event_handler_prop(prop_name) and prop_type == "unknown" then
+                            final_prop_type = "() => void"
+                        end
+
+                        edit.snippet.prop_type = final_prop_type
                     end
 
                     table.insert(edits, edit)
@@ -880,12 +912,26 @@ local function apply_edits(bufnr, edits)
                 local expand_row = snippet_edit.row + 1
                 local expand_col = #indent + #var_name
 
-                local snip = s("", {
-                    t("?"),
-                    i(1),
-                    t(": "),
-                    i(2, prop_type),
-                })
+                local snip
+                if prop_type:match("^%(%s*%)%s*=>") then
+                    local return_type = prop_type:match("=>%s*(.+)$") or "void"
+
+                    snip = s("", {
+                        t("?"),
+                        i(1),
+                        t(": ("),
+                        i(2),
+                        t(") => "),
+                        i(3, return_type),
+                    })
+                else
+                    snip = s("", {
+                        t("?"),
+                        i(1),
+                        t(": "),
+                        i(2, prop_type),
+                    })
+                end
 
                 luasnip.snip_expand(snip, { pos = { expand_row, expand_col } })
             end)
@@ -1001,5 +1047,6 @@ end
 M.get_undefined_prop_at_cursor = get_undefined_prop_at_cursor
 M.find_component_from_jsx_element = find_component_from_jsx_element
 M.infer_type = infer_type
+M.is_event_handler_prop = is_event_handler_prop
 
 return M
