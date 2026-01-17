@@ -131,74 +131,6 @@ function M.is_setter_variable(bufnr, pos)
 end
 
 ---@param bufnr number: buffer number
----@param symbol_name string: symbol to find
----@return table[]: array of LSP-like Location objects
-function M.find_references(bufnr, symbol_name)
-    if not symbol_name or symbol_name == "" then
-        return {}
-    end
-
-    local uri = vim.uri_from_bufnr(bufnr)
-    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    local locations = {}
-
-    -- Word boundary pattern to match exact symbol
-    local pattern = "()(" .. vim.pesc(symbol_name) .. ")()"
-
-    for row, line in ipairs(lines) do
-        local search_start = 1
-
-        while true do
-            local match_start, _, match_end = line:match(pattern, search_start)
-
-            if not match_start then
-                break
-            end
-
-            -- Check word boundaries
-            local before_char = match_start > 1 and line:sub(match_start - 1, match_start - 1) or ""
-            local after_char = line:sub(match_end, match_end) or ""
-
-            local is_word_start = before_char == "" or not before_char:match("[%w_]")
-            local is_word_end = after_char == "" or not after_char:match("[%w_]")
-
-            if is_word_start and is_word_end then
-                table.insert(locations, {
-                    uri = uri,
-                    range = {
-                        start = { line = row - 1, character = match_start - 1 },
-                        ["end"] = { line = row - 1, character = match_end - 1 },
-                    },
-                })
-            end
-
-            search_start = match_end
-        end
-    end
-
-    return locations
-end
-
----@param bufnr number: buffer number
----@param new_name string: proposed new name
----@return boolean: true if conflict exists
-function M.check_conflict(bufnr, new_name)
-    -- Simple conflict check: search for the identifier in current buffer
-    -- More sophisticated approach would use tree-sitter to check scope
-    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-
-    local pattern = "%f[%w_]" .. vim.pesc(new_name) .. "%f[^%w_]"
-
-    for _, line in ipairs(lines) do
-        if line:match(pattern) then
-            return true
-        end
-    end
-
-    return false
-end
-
----@param bufnr number: buffer number
 ---@param pos table: cursor position {row, col}
 ---@return table|nil: {is_state_rename: bool, secondary_old: string, state_name: string, setter_name: string}
 function M.get_rename_context(bufnr, pos)
@@ -235,6 +167,7 @@ function M.calculate_secondary_from_primary(new_primary, is_state_rename)
     end
 end
 
+---@tag use_state.prepare_secondary_rename()
 ---@param bufnr number: buffer number
 ---@param pos table: cursor position {row, col}
 ---@param new_name string: new name for primary symbol
@@ -252,7 +185,7 @@ function M.prepare_secondary_rename(bufnr, pos, new_name)
         return nil
     end
 
-    if M.check_conflict(bufnr, secondary_name) then
+    if utils.check_conflict(bufnr, secondary_name) then
         vim.notify(
             string.format(
                 "[react.nvim] Conflict: %s already exists. Skipping auto-rename.",
@@ -263,7 +196,7 @@ function M.prepare_secondary_rename(bufnr, pos, new_name)
         return nil
     end
 
-    local references = M.find_references(bufnr, context.secondary_old)
+    local references = utils.find_references(bufnr, context.secondary_old)
 
     if #references == 0 then
         return nil
@@ -276,6 +209,7 @@ function M.prepare_secondary_rename(bufnr, pos, new_name)
     }
 end
 
+---@tag use_state.prepare_secondary_from_edit()
 ---@param bufnr number: buffer number
 ---@param pos table: cursor position {row, col}
 ---@param workspace_edit table: workspace edit from LSP
@@ -299,7 +233,7 @@ function M.prepare_secondary_from_edit(bufnr, pos, workspace_edit)
         return nil
     end
 
-    if M.check_conflict(bufnr, secondary_name) then
+    if utils.check_conflict(bufnr, secondary_name) then
         vim.notify(
             string.format(
                 "[react.nvim] Conflict: %s already exists. Skipping auto-rename.",
@@ -310,7 +244,7 @@ function M.prepare_secondary_from_edit(bufnr, pos, workspace_edit)
         return nil
     end
 
-    local references = M.find_references(bufnr, context.secondary_old)
+    local references = utils.find_references(bufnr, context.secondary_old)
 
     if #references == 0 then
         return nil

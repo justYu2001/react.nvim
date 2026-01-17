@@ -1,5 +1,6 @@
 local use_state = require("react.lsp.rename.use_state")
 local props = require("react.lsp.rename.props")
+local component_props = require("react.lsp.rename.component_props")
 local utils = require("react.lsp.rename.utils")
 local ui = require("react.ui.select")
 local log = require("react.util.log")
@@ -22,6 +23,51 @@ function M.rename(new_name, opts)
         log.debug("rename", "Interactive rename not yet supported, using original")
 
         return M._original_rename(new_name, opts)
+    end
+
+    -- Check component-props rename first
+    local cp_info = component_props.prepare_secondary_rename(bufnr, pos, new_name)
+    if cp_info then
+        log.debug("rename", "Detected component-props pattern")
+        log.debug("rename", "Will rename %s → %s", cp_info.secondary_old, cp_info.secondary_name)
+
+        -- Build LSP params for primary rename
+        local clients = vim.lsp.get_clients({ bufnr = bufnr })
+        local offset_encoding = clients[1] and clients[1].offset_encoding or "utf-16"
+        local params = vim.lsp.util.make_position_params(0, offset_encoding)
+        params.newName = new_name
+
+        -- Request primary rename from all clients
+        vim.lsp.buf_request_all(bufnr, "textDocument/rename", params, function(results)
+            -- Merge workspace edits from all LSP clients
+            local workspace_edit = M.merge_workspace_edits(results)
+
+            if not workspace_edit then
+                log.debug("rename", "No workspace edit returned")
+                return
+            end
+
+            -- Add secondary edits
+            M.add_secondary_edits(
+                workspace_edit,
+                cp_info.references,
+                cp_info.secondary_old,
+                cp_info.secondary_name
+            )
+
+            log.debug(
+                "rename",
+                "Added %d edits for %s→%s",
+                #cp_info.references,
+                cp_info.secondary_old,
+                cp_info.secondary_name
+            )
+
+            -- Apply combined edit
+            vim.lsp.util.apply_workspace_edit(workspace_edit, offset_encoding)
+        end)
+
+        return
     end
 
     local rename_info = use_state.prepare_secondary_rename(bufnr, pos, new_name)
@@ -194,6 +240,31 @@ function M.try_add_use_state_edits(workspace_edit)
 
     if props_info and props_info.is_prop then
         return M.handle_props_workspace_edit(workspace_edit, bufnr, pos, props_info)
+    end
+
+    -- Check component-props rename
+    local cp_info = component_props.prepare_secondary_from_edit(bufnr, pos, workspace_edit)
+    if cp_info then
+        log.debug("rename.hook", "Detected component-props pattern in workspace edit")
+
+        -- Clone workspace_edit and add secondary edits
+        local enhanced_edit = vim.deepcopy(workspace_edit)
+        M.add_secondary_edits(
+            enhanced_edit,
+            cp_info.references,
+            cp_info.secondary_old,
+            cp_info.secondary_name
+        )
+
+        log.debug(
+            "rename.hook",
+            "Added %d edits for %s→%s",
+            #cp_info.references,
+            cp_info.secondary_old,
+            cp_info.secondary_name
+        )
+
+        return enhanced_edit
     end
 
     local rename_info = use_state.prepare_secondary_from_edit(bufnr, pos, workspace_edit)
