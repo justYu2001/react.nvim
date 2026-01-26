@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/justYu2001/react.nvim/compare/v0.6.0...v0.7.0) (2026-01-26)
+
+
+### Features
+
+* useCallback wrapper code action ([#16](https://github.com/justYu2001/react.nvim/issues/16)) ([59281fe](https://github.com/justYu2001/react.nvim/commit/59281fe01b2f77d84f2c763720075e74db18e50d))
+
 ## [0.6.0](https://github.com/justYu2001/react.nvim/compare/v0.5.0...v0.6.0) (2026-01-17)
 
 
