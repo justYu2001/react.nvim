@@ -696,4 +696,244 @@ function M.prepare_secondary_from_edit(bufnr, pos, workspace_edit)
     return M.prepare_secondary_rename(bufnr, pos, new_name)
 end
 
+---@param bufnr number: buffer number
+---@param pos table: cursor position {row, col}
+---@return table|nil: {is_import: bool, import_type: "named"|"default", component_name: string, import_path: string, import_node: TSNode}
+function M.is_component_import(bufnr, pos)
+    local lang_map = {
+        typescript = "typescript",
+        typescriptreact = "tsx",
+        javascript = "javascript",
+        javascriptreact = "tsx",
+    }
+
+    local ft = vim.bo[bufnr].filetype
+    local lang = lang_map[ft]
+
+    if not lang or not ts.has_parser(bufnr, lang) then
+        return { is_import = false }
+    end
+
+    local ok, parser = pcall(vim.treesitter.get_parser, bufnr, lang)
+    if not ok or not parser then
+        return { is_import = false }
+    end
+
+    local trees = parser:parse()
+    if not trees or #trees == 0 then
+        return { is_import = false }
+    end
+
+    local root = trees[1]:root()
+    local row = pos[1] - 1
+    local col = pos[2]
+
+    local node = root:descendant_for_range(row, col, row, col)
+    if not node or node:type() ~= "identifier" then
+        return { is_import = false }
+    end
+
+    local component_name = vim.treesitter.get_node_text(node, bufnr)
+
+    -- Check if PascalCase
+    if not is_pascal_case(component_name) then
+        return { is_import = false }
+    end
+
+    -- Walk up to find import context
+    local current = node
+    while current do
+        local node_type = current:type()
+
+        -- Check for named import: import { Button } from "./Button"
+        if node_type == "import_specifier" then
+            -- Find import_statement parent
+            local import_stmt = current:parent()
+            while import_stmt and import_stmt:type() ~= "import_statement" do
+                import_stmt = import_stmt:parent()
+            end
+
+            if import_stmt then
+                -- Find source path
+                for child in import_stmt:iter_children() do
+                    if child:type() == "string" then
+                        local import_path = vim.treesitter.get_node_text(child, bufnr)
+                        import_path = import_path:gsub("^['\"]", ""):gsub("['\"]$", "")
+
+                        return {
+                            is_import = true,
+                            import_type = "named",
+                            component_name = component_name,
+                            import_path = import_path,
+                            import_node = node,
+                        }
+                    end
+                end
+            end
+        end
+
+        -- Check for default import: import Button from "./Button"
+        if node_type == "import_clause" then
+            -- Check if identifier is direct child (default import)
+            local is_default = false
+            for child in current:iter_children() do
+                if child == node then
+                    is_default = true
+                    break
+                end
+            end
+
+            if is_default then
+                local import_stmt = current:parent()
+                if import_stmt and import_stmt:type() == "import_statement" then
+                    -- Find source path
+                    for child in import_stmt:iter_children() do
+                        if child:type() == "string" then
+                            local import_path = vim.treesitter.get_node_text(child, bufnr)
+                            import_path = import_path:gsub("^['\"]", ""):gsub("['\"]$", "")
+
+                            return {
+                                is_import = true,
+                                import_type = "default",
+                                component_name = component_name,
+                                import_path = import_path,
+                                import_node = node,
+                            }
+                        end
+                    end
+                end
+            end
+        end
+
+        current = current:parent()
+    end
+
+    return { is_import = false }
+end
+
+---@param bufnr number: buffer number
+---@param pos table: cursor position {row, col}
+---@return table: {is_usage: bool, is_same_file: bool, component_name: string, props_type_name: string, type_location: table|nil, import_info: table|nil}
+function M.detect_component_usage(bufnr, pos)
+    -- First check same-file usage
+    local same_file_result = M.is_component_usage_in_same_file(bufnr, pos)
+    if same_file_result.is_usage then
+        return {
+            is_usage = true,
+            is_same_file = true,
+            component_name = same_file_result.component_name,
+            props_type_name = same_file_result.props_type_name,
+            type_location = same_file_result.type_location,
+        }
+    end
+
+    -- Check cross-file usage
+    local lang_map = {
+        typescript = "typescript",
+        typescriptreact = "tsx",
+        javascript = "javascript",
+        javascriptreact = "tsx",
+    }
+
+    local ft = vim.bo[bufnr].filetype
+    local lang = lang_map[ft]
+
+    if not lang or not ts.has_parser(bufnr, lang) then
+        return { is_usage = false }
+    end
+
+    local ok, parser = pcall(vim.treesitter.get_parser, bufnr, lang)
+    if not ok or not parser then
+        return { is_usage = false }
+    end
+
+    local trees = parser:parse()
+    if not trees or #trees == 0 then
+        return { is_usage = false }
+    end
+
+    local root = trees[1]:root()
+    local row = pos[1] - 1
+    local col = pos[2]
+
+    local node = root:descendant_for_range(row, col, row, col)
+    if not node or node:type() ~= "identifier" then
+        return { is_usage = false }
+    end
+
+    -- Check if parent is JSX opening or self-closing element
+    local parent = node:parent()
+    if not parent then
+        return { is_usage = false }
+    end
+
+    local is_jsx_usage = parent:type() == "jsx_opening_element"
+        or parent:type() == "jsx_self_closing_element"
+
+    if not is_jsx_usage then
+        return { is_usage = false }
+    end
+
+    local component_name = vim.treesitter.get_node_text(node, bufnr)
+
+    -- Check if PascalCase
+    if not is_pascal_case(component_name) then
+        return { is_usage = false }
+    end
+
+    -- Find component import (cross-file)
+    local props_module = require("react.lsp.rename.props")
+    local import_info = props_module.find_component_import(bufnr, root, component_name, lang)
+    if not import_info then
+        return { is_usage = false }
+    end
+
+    -- Calculate expected props type name
+    local props_type_name = M.calculate_props_type_name(component_name)
+
+    return {
+        is_usage = true,
+        is_same_file = false,
+        component_name = component_name,
+        props_type_name = props_type_name,
+        import_info = import_info,
+    }
+end
+
+---@param bufnr number: buffer number
+---@param pos table: cursor position {row, col}
+---@return table|nil: cross-file scenario info or nil if not cross-file
+function M.detect_cross_file_scenario(bufnr, pos)
+    if not is_typescript_file(bufnr) then
+        return nil
+    end
+
+    -- Check if cursor on import
+    local import_info = M.is_component_import(bufnr, pos)
+    if import_info and import_info.is_import then
+        return {
+            is_cross_file = true,
+            scenario = "import",
+            import_type = import_info.import_type or "named",
+            component_name = import_info.component_name or "",
+            import_path = import_info.import_path or "",
+            import_node = import_info.import_node,
+        }
+    end
+
+    -- Check if cursor on cross-file usage
+    local usage_info = M.detect_component_usage(bufnr, pos)
+    if usage_info and usage_info.is_usage and not usage_info.is_same_file then
+        return {
+            is_cross_file = true,
+            scenario = "usage",
+            component_name = usage_info.component_name or "",
+            props_type_name = usage_info.props_type_name or "",
+            import_info = usage_info.import_info,
+        }
+    end
+
+    return nil
+end
+
 return M
