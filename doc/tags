@@ -37,6 +37,7 @@ M.get_sources()	react.txt	/*M.get_sources()*
 M.handle_props_workspace_edit()	react.txt	/*M.handle_props_workspace_edit()*
 M.has_parser()	react.txt	/*M.has_parser()*
 M.is_component_name()	react.txt	/*M.is_component_name()*
+M.is_component_usage_in_same_file()	react.txt	/*M.is_component_usage_in_same_file()*
 M.is_props_type_name()	react.txt	/*M.is_props_type_name()*
 M.is_setter_variable()	react.txt	/*M.is_setter_variable()*
 M.is_state_variable()	react.txt	/*M.is_state_variable()*

@@ -355,6 +355,88 @@ function M.is_props_type_name(bufnr, pos)
 end
 
 ---@param bufnr number: buffer number
+---@param pos table: cursor position {row, col}
+---@return table: {is_usage: bool, component_name: string, props_type_name: string, type_location: table|nil}
+function M.is_component_usage_in_same_file(bufnr, pos)
+    if not is_typescript_file(bufnr) then
+        return { is_usage = false }
+    end
+
+    local lang_map = {
+        typescript = "typescript",
+        typescriptreact = "tsx",
+    }
+
+    local ft = vim.bo[bufnr].filetype
+    local lang = lang_map[ft]
+
+    if not lang or not ts.has_parser(bufnr, lang) then
+        return { is_usage = false }
+    end
+
+    local ok, parser = pcall(vim.treesitter.get_parser, bufnr, lang)
+    if not ok or not parser then
+        return { is_usage = false }
+    end
+
+    local trees = parser:parse()
+    if not trees or #trees == 0 then
+        return { is_usage = false }
+    end
+
+    local root = trees[1]:root()
+    local row = pos[1] - 1
+    local col = pos[2]
+
+    local node = root:descendant_for_range(row, col, row, col)
+    if not node or node:type() ~= "identifier" then
+        return { is_usage = false }
+    end
+
+    -- Check if parent is JSX opening or self-closing element
+    local parent = node:parent()
+    if not parent then
+        return { is_usage = false }
+    end
+
+    local is_jsx_usage = parent:type() == "jsx_opening_element"
+        or parent:type() == "jsx_self_closing_element"
+
+    if not is_jsx_usage then
+        return { is_usage = false }
+    end
+
+    local component_name = vim.treesitter.get_node_text(node, bufnr)
+
+    -- Check if PascalCase
+    if not is_pascal_case(component_name) then
+        return { is_usage = false }
+    end
+
+    -- Find component definition in same file
+    local component_info = find_component_by_name(bufnr, component_name)
+    if not component_info then
+        return { is_usage = false }
+    end
+
+    -- Calculate expected props type name
+    local props_type_name = M.calculate_props_type_name(component_name)
+
+    -- Check if props type exists in buffer
+    local type_info = find_type_declaration(bufnr, props_type_name)
+
+    return {
+        is_usage = true,
+        component_name = component_name,
+        props_type_name = props_type_name,
+        type_location = type_info and {
+            bufnr = bufnr,
+            node = type_info.name_node,
+        } or nil,
+    }
+end
+
+---@param bufnr number: buffer number
 ---@param type_name string: type name to check
 ---@return boolean: true if type is used by multiple components
 function M.is_type_shared(bufnr, type_name)
@@ -436,6 +518,54 @@ end
 function M.prepare_secondary_rename(bufnr, pos, new_name)
     if not is_typescript_file(bufnr) then
         return nil
+    end
+
+    -- Check if renaming component usage in same file
+    local usage_info = M.is_component_usage_in_same_file(bufnr, pos)
+    if usage_info and usage_info.is_usage then
+        local secondary_name = M.calculate_props_type_name(new_name)
+
+        if not usage_info.type_location then
+            -- Props type doesn't exist, skip
+            return nil
+        end
+
+        -- Check if props type is shared
+        if usage_info.props_type_name and M.is_type_shared(bufnr, usage_info.props_type_name) then
+            vim.notify(
+                string.format(
+                    "[react.nvim] Props type '%s' is used by multiple components. Skipping auto-rename.",
+                    usage_info.props_type_name
+                ),
+                vim.log.levels.WARN
+            )
+            return nil
+        end
+
+        if secondary_name and utils.check_conflict(bufnr, secondary_name) then
+            vim.notify(
+                string.format(
+                    "[react.nvim] Conflict: %s already exists. Skipping auto-rename.",
+                    secondary_name
+                ),
+                vim.log.levels.WARN
+            )
+            return nil
+        end
+
+        local references = usage_info.props_type_name
+                and utils.find_references(bufnr, usage_info.props_type_name)
+            or {}
+
+        if #references == 0 then
+            return nil
+        end
+
+        return {
+            secondary_old = usage_info.props_type_name,
+            secondary_name = secondary_name,
+            references = references,
+        }
     end
 
     -- Check if renaming component
