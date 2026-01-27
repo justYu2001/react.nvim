@@ -993,4 +993,274 @@ T["integration"]["exported component and type"] = function()
     cleanup_buffer(bufnr)
 end
 
+-- ========================================================================
+-- Component Usage Rename Tests
+-- ========================================================================
+
+T["is_component_usage_in_same_file"] = new_set()
+
+T["is_component_usage_in_same_file"]["detects basic usage"] = function()
+    local bufnr = create_react_buffer({
+        "interface ButtonProps { label: string }",
+        "function Button() {",
+        "  return <div>Click</div>",
+        "}",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 5, 19 }) -- cursor on "Button" in usage
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 5, 19 })
+
+    if result then
+        eq(result.is_usage, true)
+        eq(result.component_name, "Button")
+        eq(result.props_type_name, "ButtonProps")
+        eq(result.type_location ~= nil, true)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["detects usage with props"] = function()
+    local bufnr = create_react_buffer({
+        "interface ButtonProps { label: string }",
+        "function Button(props: ButtonProps) {",
+        "  return <div>{props.label}</div>",
+        "}",
+        'const App = () => <Button label="Click" />',
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 5, 19 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 5, 19 })
+
+    if result then
+        eq(result.is_usage, true)
+        eq(result.component_name, "Button")
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["detects self-closing element"] = function()
+    local bufnr = create_react_buffer({
+        "interface ButtonProps { label: string }",
+        "function Button() {",
+        "  return <div>Click</div>",
+        "}",
+        "const App = () => <div><Button /></div>",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 5, 27 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 5, 27 })
+
+    if result then
+        eq(result.is_usage, true)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["returns nil without props type"] = function()
+    local bufnr = create_react_buffer({
+        "function Button() {",
+        "  return <div>Click</div>",
+        "}",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 4, 19 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 4, 19 })
+
+    if result then
+        eq(result.is_usage, true)
+        eq(result.type_location, nil)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["rejects non-PascalCase"] = function()
+    local bufnr = create_react_buffer({
+        "const App = () => <button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 1, 19 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 1, 19 })
+
+    if result then
+        eq(result.is_usage, false)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["rejects cross-file usage"] = function()
+    local bufnr = create_react_buffer({
+        "import { Button } from './Button'",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 2, 19 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 2, 19 })
+
+    if result then
+        eq(result.is_usage, false)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["rejects member expression"] = function()
+    local bufnr = create_react_buffer({
+        "const Foo = { Bar: () => <div>Bar</div> }",
+        "const App = () => <Foo.Bar />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 2, 23 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 2, 23 })
+
+    if result then
+        eq(result.is_usage, false)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["is_component_usage_in_same_file"]["rejects JavaScript file"] = function()
+    local bufnr = create_react_buffer({
+        "function Button() {",
+        "  return <div>Click</div>",
+        "}",
+        "const App = () => <Button />",
+    }, "javascriptreact")
+
+    vim.api.nvim_win_set_cursor(0, { 4, 19 })
+
+    local result = component_props.is_component_usage_in_same_file(bufnr, { 4, 19 })
+
+    if result then
+        eq(result.is_usage, false)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["prepare_secondary_rename"]["usage_to_definition"] = new_set()
+
+T["prepare_secondary_rename"]["usage_to_definition"]["renames from usage when both exist"] = function()
+    local bufnr = create_react_buffer({
+        "interface ButtonProps { label: string }",
+        "function Button(props: ButtonProps) {",
+        "  return <div>{props.label}</div>",
+        "}",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 5, 19 }) -- cursor on usage
+
+    local result = component_props.prepare_secondary_rename(bufnr, { 5, 19 }, "CustomButton")
+
+    eq(result ~= nil, true)
+    if result then
+        eq(result.secondary_old, "ButtonProps")
+        eq(result.secondary_name, "CustomButtonProps")
+        eq(#result.references > 0, true)
+    end
+
+    cleanup_buffer(bufnr)
+end
+
+T["prepare_secondary_rename"]["usage_to_definition"]["returns nil without props type"] = function()
+    local bufnr = create_react_buffer({
+        "function Button() {",
+        "  return <div>Click</div>",
+        "}",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 4, 19 })
+
+    local result = component_props.prepare_secondary_rename(bufnr, { 4, 19 }, "CustomButton")
+
+    eq(result, nil)
+
+    cleanup_buffer(bufnr)
+end
+
+T["prepare_secondary_rename"]["usage_to_definition"]["warns and skips when shared"] = function()
+    local bufnr = create_react_buffer({
+        "interface SharedProps { label: string }",
+        "function Button(props: SharedProps) {",
+        "  return <div>{props.label}</div>",
+        "}",
+        "function Link(props: SharedProps) {",
+        "  return <a>{props.label}</a>",
+        "}",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 8, 19 })
+
+    local result = component_props.prepare_secondary_rename(bufnr, { 8, 19 }, "CustomButton")
+
+    eq(result, nil)
+
+    cleanup_buffer(bufnr)
+end
+
+T["prepare_secondary_rename"]["usage_to_definition"]["warns and skips on conflict"] = function()
+    local bufnr = create_react_buffer({
+        "interface ButtonProps { label: string }",
+        "interface CustomButtonProps { label: string }",
+        "function Button(props: ButtonProps) {",
+        "  return <div>{props.label}</div>",
+        "}",
+        "const App = () => <Button />",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 6, 19 })
+
+    local result = component_props.prepare_secondary_rename(bufnr, { 6, 19 }, "CustomButton")
+
+    eq(result, nil)
+
+    cleanup_buffer(bufnr)
+end
+
+T["prepare_secondary_rename"]["usage_to_definition"]["handles multiple usages"] = function()
+    local bufnr = create_react_buffer({
+        "interface ButtonProps { label: string }",
+        "function Button(props: ButtonProps) {",
+        "  return <div>{props.label}</div>",
+        "}",
+        "const App = () => {",
+        "  return (",
+        "    <div>",
+        "      <Button />",
+        "      <Button />",
+        "    </div>",
+        "  )",
+        "}",
+    })
+
+    vim.api.nvim_win_set_cursor(0, { 8, 7 }) -- first usage
+
+    local result = component_props.prepare_secondary_rename(bufnr, { 8, 7 }, "SubmitButton")
+
+    eq(result ~= nil, true)
+    if result then
+        eq(result.secondary_old, "ButtonProps")
+        eq(result.secondary_name, "SubmitButtonProps")
+    end
+
+    cleanup_buffer(bufnr)
+end
+
 return T

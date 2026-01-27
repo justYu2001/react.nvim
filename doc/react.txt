@@ -305,6 +305,15 @@ Return ~
 `(table|nil)`: {is_props_type: bool, component_name: string, props_type_name: string, component_location: table|nil}
 
 ------------------------------------------------------------------------------
+                                           *M.is_component_usage_in_same_file()*
+              `M.is_component_usage_in_same_file`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table)`: {is_usage: bool, component_name: string, props_type_name: string, type_location: table|nil}
+
+------------------------------------------------------------------------------
                                                             *M.is_type_shared()*
                     `M.is_type_shared`({bufnr}, {type_name})
 Parameters ~
