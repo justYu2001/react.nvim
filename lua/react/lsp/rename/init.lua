@@ -53,6 +53,26 @@ function M.rename(new_name, opts)
         end
     end
 
+    -- Check if component name matches filename (save state, don't show menu yet)
+    local component_info = component_props.is_component_name(bufnr, pos)
+
+    if component_info and component_info.is_component then
+        local filename_util = require("react.util.filename")
+        local matches, old_filename, case_style =
+            filename_util.component_matches_filename(bufnr, component_info.component_name)
+
+        if matches then
+            -- Save state for post-rename file rename menu
+            M._pending_file_rename = {
+                bufnr = bufnr,
+                old_component_name = component_info.component_name,
+                new_component_name = new_name,
+                old_filename = old_filename,
+                case_style = case_style,
+            }
+        end
+    end
+
     -- Check component-props rename first
     local cp_info = component_props.prepare_secondary_rename(bufnr, pos, new_name)
     if cp_info then
@@ -93,6 +113,9 @@ function M.rename(new_name, opts)
 
             -- Apply combined edit
             vim.lsp.util.apply_workspace_edit(workspace_edit, offset_encoding)
+
+            -- Show file rename menu if component matches filename
+            M.maybe_show_file_rename_menu()
         end)
 
         return
@@ -147,6 +170,9 @@ function M.rename(new_name, opts)
 
         -- Apply combined edit
         vim.lsp.util.apply_workspace_edit(workspace_edit, offset_encoding)
+
+        -- Show file rename menu if component matches filename
+        M.maybe_show_file_rename_menu()
     end)
 end
 
@@ -1156,6 +1182,48 @@ function M.handle_cross_file_direct_rename(cross_file_info, bufnr, pos, new_name
                             cross_file_info.component_name,
                             new_name
                         )
+
+                        -- Check if imported component matches its filename
+                        local filename_util = require("react.util.filename")
+                        local matches, _old_filename, case_style =
+                            filename_util.component_matches_filename(import_bufnr, new_name)
+
+                        if matches and case_style then
+                            -- Show menu for imported file rename
+                            vim.schedule(function()
+                                local old_filepath = vim.api.nvim_buf_get_name(import_bufnr)
+                                local old_filename_with_ext = vim.fn.fnamemodify(old_filepath, ":t")
+                                local new_filename = filename_util.calculate_new_filename(
+                                    new_name,
+                                    old_filename_with_ext,
+                                    case_style
+                                )
+
+                                ui.show_file_rename_menu(
+                                    old_filename_with_ext,
+                                    new_filename,
+                                    function(choice)
+                                        if choice == "rename" then
+                                            local new_path = vim.fn.fnamemodify(old_filepath, ":h")
+                                                .. "/"
+                                                .. new_filename
+                                            M.execute_file_rename(
+                                                vim.uri_from_fname(old_filepath),
+                                                vim.uri_from_fname(new_path),
+                                                function(success)
+                                                    if success then
+                                                        vim.notify(
+                                                            "[react.nvim] Renamed file",
+                                                            vim.log.levels.INFO
+                                                        )
+                                                    end
+                                                end
+                                            )
+                                        end
+                                    end
+                                )
+                            end)
+                        end
                     end
 
                     -- Step 5: Restore cursor only if we moved it (usage scenario)
@@ -1220,6 +1288,104 @@ function M.show_deferred_cross_file_menu()
             vim.lsp.util.apply_workspace_edit = current
         end
     )
+end
+
+--- Show file rename menu if pending state exists
+function M.maybe_show_file_rename_menu()
+	if not M._pending_file_rename then
+		return
+	end
+
+	local pending = M._pending_file_rename
+	M._pending_file_rename = nil
+
+	vim.schedule(function()
+		local filename_util = require("react.util.filename")
+		local new_filename = filename_util.calculate_new_filename(
+			pending.new_component_name,
+			pending.old_filename,
+			pending.case_style
+		)
+
+		ui.show_file_rename_menu(pending.old_filename, new_filename, function(choice)
+			if choice == "rename" then
+				local old_path = vim.api.nvim_buf_get_name(pending.bufnr)
+				local dir = vim.fn.fnamemodify(old_path, ":h")
+				local new_path = dir .. "/" .. new_filename
+
+				M.execute_file_rename(
+					vim.uri_from_fname(old_path),
+					vim.uri_from_fname(new_path),
+					function(success)
+						if success then
+							vim.notify("[react.nvim] Renamed file", vim.log.levels.INFO)
+						end
+					end
+				)
+			end
+		end)
+	end)
+end
+
+--- Execute file rename with LSP willRenameFiles and filesystem operation
+---@param old_uri string: URI of old file path
+---@param new_uri string: URI of new file path
+---@param callback function: callback(success: boolean) called after completion
+function M.execute_file_rename(old_uri, new_uri, callback)
+	local old_path = vim.uri_to_fname(old_uri)
+	local new_path = vim.uri_to_fname(new_uri)
+
+	-- Check if new file already exists
+	if vim.fn.filereadable(new_path) == 1 then
+		vim.notify(
+			string.format("[react.nvim] File already exists: %s", vim.fn.fnamemodify(new_path, ":t")),
+			vim.log.levels.ERROR
+		)
+		callback(false)
+		return
+	end
+
+	-- Prepare willRenameFiles params
+	local params = {
+		files = {
+			{
+				oldUri = old_uri,
+				newUri = new_uri,
+			},
+		},
+	}
+
+	local bufnr = vim.fn.bufnr(old_path)
+	if bufnr == -1 then
+		bufnr = vim.api.nvim_get_current_buf()
+	end
+
+	-- Request willRenameFiles from LSP clients
+	vim.lsp.buf_request_all(bufnr, "workspace/willRenameFiles", params, function(results)
+		-- Apply workspace edits if any (updates imports in other files)
+		local workspace_edit = M.merge_workspace_edits(results)
+		if workspace_edit then
+			local clients = vim.lsp.get_clients({ bufnr = bufnr })
+			local offset_encoding = clients[1] and clients[1].offset_encoding or "utf-16"
+			vim.lsp.util.apply_workspace_edit(workspace_edit, offset_encoding)
+		end
+
+		-- Schedule file rename after workspace edit
+		vim.schedule(function()
+			-- Use vim.lsp.util.rename for actual file operation
+			local ok, err = pcall(vim.lsp.util.rename, old_path, new_path)
+			if not ok then
+				vim.notify(
+					string.format("[react.nvim] Failed to rename file: %s", err),
+					vim.log.levels.ERROR
+				)
+				callback(false)
+				return
+			end
+
+			callback(true)
+		end)
+	end)
 end
 
 return M

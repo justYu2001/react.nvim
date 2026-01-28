@@ -63,4 +63,31 @@ function M.show_cross_file_rename_menu(old_name, new_name, callback)
     end)
 end
 
+---@param old_filename string: current filename
+---@param new_filename string: proposed new filename
+---@param callback function: callback with choice ("rename" or "skip")
+function M.show_file_rename_menu(old_filename, new_filename, callback)
+    local items = {
+        {
+            label = string.format("Rename file: %s → %s", old_filename, new_filename),
+            value = "rename",
+        },
+        {
+            label = "Skip file rename",
+            value = "skip",
+        },
+    }
+
+    vim.ui.select(items, {
+        prompt = "Component matches filename:",
+        format_item = function(item)
+            return item.label
+        end,
+    }, function(choice)
+        if choice then
+            callback(choice.value)
+        end
+    end)
+end
+
 return M
