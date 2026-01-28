@@ -268,6 +268,61 @@ Parameters ~
                          `M.show_deferred_props_menu`()
 Show deferred props rename menu after renaming
 
+------------------------------------------------------------------------------
+                                                      *M.cleanup_import_alias()*
+                 `M.cleanup_import_alias`({bufnr}, {new_name})
+Parameters ~
+{bufnr} `(number)`
+{new_name} `(string)`
+
+------------------------------------------------------------------------------
+                                                    *M.rename_props_in_buffer()*
+    `M.rename_props_in_buffer`({import_bufnr}, {component_name}, {new_name})
+Parameters ~
+{import_bufnr} `(number)`: buffer containing component
+{component_name} `(string)`: component name
+{new_name} `(string)`: new component name
+
+------------------------------------------------------------------------------
+                                       *M.maybe_rename_props_in_imported_file()*
+`M.maybe_rename_props_in_imported_file`({current_bufnr}, {import_path}, {component_name}, {new_name})
+Parameters ~
+{current_bufnr} `(number)`: current buffer with the import
+{import_path} `(string)`: relative import path like "./Rename"
+{component_name} `(string)`
+{new_name} `(string)`
+
+------------------------------------------------------------------------------
+                                              *M.maybe_rename_props_same_file()*
+    `M.maybe_rename_props_same_file`({bufnr}, {component_name}, {new_name})
+Parameters ~
+{bufnr} `(number)`
+{component_name} `(string)`
+{new_name} `(string)`
+
+------------------------------------------------------------------------------
+                                             *M.maybe_rename_props_cross_file()*
+`M.maybe_rename_props_cross_file`({bufnr}, {component_name}, {new_name}, {import_info})
+Parameters ~
+{bufnr} `(number)`
+{component_name} `(string)`
+{new_name} `(string)`
+{import_info} `(table|nil)`
+
+------------------------------------------------------------------------------
+                                           *M.handle_cross_file_direct_rename()*
+`M.handle_cross_file_direct_rename`({cross_file_info}, {bufnr}, {pos}, {new_name})
+Parameters ~
+{cross_file_info} `(table)`
+{bufnr} `(number)`
+{pos} `(table)`
+{new_name} `(string)`
+
+------------------------------------------------------------------------------
+                                             *M.show_deferred_cross_file_menu()*
+                      `M.show_deferred_cross_file_menu`()
+Show deferred cross-file rename menu after renaming
+
 
 ==============================================================================
 ------------------------------------------------------------------------------
@@ -341,6 +396,33 @@ Parameters ~
 {workspace_edit} `(table)`: workspace edit from LSP
 Return ~
 `(table|nil)`: {secondary_old: string, secondary_name: string, references: table[]}
+
+------------------------------------------------------------------------------
+                                                       *M.is_component_import()*
+                    `M.is_component_import`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: {is_import: bool, import_type: "named"|"default", component_name: string, import_path: string, import_node: TSNode}
+
+------------------------------------------------------------------------------
+                                                    *M.detect_component_usage()*
+                   `M.detect_component_usage`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table)`: {is_usage: bool, is_same_file: bool, component_name: string, props_type_name: string, type_location: table|nil, import_info: table|nil}
+
+------------------------------------------------------------------------------
+                                                *M.detect_cross_file_scenario()*
+                 `M.detect_cross_file_scenario`({bufnr}, {pos})
+Parameters ~
+{bufnr} `(number)`: buffer number
+{pos} `(table)`: cursor position {row, col}
+Return ~
+`(table|nil)`: cross-file scenario info or nil if not cross-file
 
 
 ==============================================================================
@@ -664,6 +746,14 @@ Parameters ~
 {old_name} `(string)`: original prop name
 {new_name} `(string)`: new prop name
 {context} `(string)` Rename target context (e.g. "jsx", "body", "type")
+{callback} `(function)`: callback with choice ("direct" or "alias")
+
+------------------------------------------------------------------------------
+                                               *M.show_cross_file_rename_menu()*
+      `M.show_cross_file_rename_menu`({old_name}, {new_name}, {callback})
+Parameters ~
+{old_name} `(string)`: original component name
+{new_name} `(string)`: new component name
 {callback} `(function)`: callback with choice ("direct" or "alias")
 
 

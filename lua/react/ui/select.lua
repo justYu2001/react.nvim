@@ -36,4 +36,31 @@ function M.show_rename_menu(old_name, new_name, context, callback)
     end)
 end
 
+---@param old_name string: original component name
+---@param new_name string: new component name
+---@param callback function: callback with choice ("direct" or "alias")
+function M.show_cross_file_rename_menu(old_name, new_name, callback)
+    local items = {
+        {
+            label = string.format("Direct rename: import { %s }", new_name),
+            value = "direct",
+        },
+        {
+            label = string.format("Use alias: import { %s as %s }", old_name, new_name),
+            value = "alias",
+        },
+    }
+
+    vim.ui.select(items, {
+        prompt = "Rename component:",
+        format_item = function(item)
+            return item.label
+        end,
+    }, function(choice)
+        if choice then
+            callback(choice.value)
+        end
+    end)
+end
+
 return M

@@ -108,6 +108,7 @@ T["select_around_tag"]["notifies when not in JSX element"] = function()
 
     local notifications = {}
     local original_notify = vim.notify
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.notify = function(msg, level)
         table.insert(notifications, { msg = msg, level = level })
     end
@@ -171,6 +172,7 @@ T["select_inner_tag"]["notifies when not in JSX element"] = function()
 
     local notifications = {}
     local original_notify = vim.notify
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.notify = function(msg, level)
         table.insert(notifications, { msg = msg, level = level })
     end
@@ -197,6 +199,7 @@ T["select_inner_tag"]["notifies for self-closing element"] = function()
 
     local notifications = {}
     local original_notify = vim.notify
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.notify = function(msg, level)
         table.insert(notifications, { msg = msg, level = level })
     end
@@ -329,6 +332,7 @@ T["filetypes"]["returns early for unsupported filetype"] = function()
 
     local notifications = {}
     local original_notify = vim.notify
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.notify = function(msg, level)
         table.insert(notifications, { msg = msg, level = level })
     end
