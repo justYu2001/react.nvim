@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/justYu2001/react.nvim/compare/v0.7.0...v0.8.0) (2026-01-28)
+
+
+### Features
+
+* component usage rename (same file) ([#18](https://github.com/justYu2001/react.nvim/issues/18)) ([e3f9705](https://github.com/justYu2001/react.nvim/commit/e3f97057bce89306ea0618ba8a7efe3e74534010))
+* cross-file bidirectional component rename ([#20](https://github.com/justYu2001/react.nvim/issues/20)) ([5c0a564](https://github.com/justYu2001/react.nvim/commit/5c0a5647a985a03163bcbf07151e4553827f7b7f))
+
 ## [0.7.0](https://github.com/justYu2001/react.nvim/compare/v0.6.0...v0.7.0) (2026-01-26)
 
 
