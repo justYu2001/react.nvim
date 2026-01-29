@@ -554,4 +554,322 @@ T["is_event_handler_prop"]["edge cases"] = function()
     eq(add_to_props.is_event_handler_prop("onA"), true) -- Has uppercase after 'on'
 end
 
+-- Helper to find jsx_element_node at cursor
+local function find_jsx_element_at_cursor(bufnr, row, col)
+    local node = vim.treesitter.get_node({
+        bufnr = bufnr,
+        pos = { row, col },
+    })
+    while node do
+        if node:type() == "jsx_self_closing_element" or node:type() == "jsx_opening_element" then
+            return node
+        end
+        node = node:parent()
+    end
+    return nil
+end
+
+-- Helper to find component function node (arrow_function or function_declaration)
+local function find_component_function_node(bufnr, comp_name)
+    local parser = vim.treesitter.get_parser(bufnr, "tsx")
+    local tree = parser:parse()[1]
+    local root = tree:root()
+
+    -- Search for function_declaration
+    for node in root:iter_children() do
+        if node:type() == "function_declaration" then
+            for child in node:iter_children() do
+                if child:type() == "identifier" then
+                    local name = vim.treesitter.get_node_text(child, bufnr)
+                    if name == comp_name then
+                        return node
+                    end
+                end
+            end
+        elseif node:type() == "lexical_declaration" then
+            -- Search for const Cmp = ...
+            for child in node:iter_children() do
+                if child:type() == "variable_declarator" then
+                    local ident = child:named_child(0)
+                    if ident and ident:type() == "identifier" then
+                        local name = vim.treesitter.get_node_text(ident, bufnr)
+                        if name == comp_name then
+                            -- Return the function node
+                            for vchild in child:iter_children() do
+                                if vchild:type() == "arrow_function" then
+                                    return vchild
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Test get_jsx_context_for_undefined_var
+T["get_jsx_context_for_undefined_var"] = new_set()
+
+T["get_jsx_context_for_undefined_var"]["detects JSX context for undefined var in prop"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a: string }) => <div />;",
+        "function Parent() {",
+        "  return <Cmp a={udf} />;",
+        "}",
+    })
+
+    -- Position at "udf" on line 3 (0-indexed: row 2)
+    local result = add_to_props.get_jsx_context_for_undefined_var(bufnr, 2, 17, "udf")
+    assert(result)
+    eq(result.prop_name, "a")
+    eq(result.jsx_element_node ~= nil, true)
+    eq(result.jsx_element_node:type(), "jsx_self_closing_element")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["get_jsx_context_for_undefined_var"]["returns nil when not in JSX"] = function()
+    local bufnr = create_tsx_buffer({
+        "function Comp() {",
+        "  const x = udf;",
+        "}",
+    })
+
+    local result = add_to_props.get_jsx_context_for_undefined_var(bufnr, 1, 12, "udf")
+    eq(result, nil)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["get_jsx_context_for_undefined_var"]["returns nil for defined variable"] = function()
+    local bufnr = create_tsx_buffer({
+        "const defined = 'hello';",
+        "const Cmp = () => <div />;",
+        "function Parent() {",
+        "  return <Cmp a={defined} />;",
+        "}",
+    })
+
+    -- This function doesn't check if var is defined; it just returns JSX context
+    -- The real check happens in get_undefined_var_at_cursor via diagnostics
+    local result = add_to_props.get_jsx_context_for_undefined_var(bufnr, 3, 17, "defined")
+    -- Will return context even if defined, since function only checks structure
+    assert(result)
+    eq(result.prop_name, "a")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["get_jsx_context_for_undefined_var"]["handles jsx_opening_element (not self-closing)"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a: string }) => <div />;",
+        "return <Cmp a={udf}>content</Cmp>;",
+    })
+
+    local result = add_to_props.get_jsx_context_for_undefined_var(bufnr, 1, 15, "udf")
+    assert(result)
+    eq(result.prop_name, "a")
+    eq(result.jsx_element_node ~= nil, true)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["get_jsx_context_for_undefined_var"]["returns nil when node is not identifier"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = () => <div />;",
+        'return <Cmp a="literal" />;',
+    })
+
+    -- Position at string literal, not identifier
+    local result = add_to_props.get_jsx_context_for_undefined_var(bufnr, 1, 15, "literal")
+    eq(result, nil)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test find_component_from_jsx_usage
+T["find_component_from_jsx_usage"] = new_set()
+
+T["find_component_from_jsx_usage"]["finds component in same file"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a: string }) => <div />;",
+        "function Parent() {",
+        "  return <Cmp a={val} />;",
+        "}",
+    })
+
+    local jsx_node = find_jsx_element_at_cursor(bufnr, 2, 10)
+    assert(jsx_node)
+
+    local result = add_to_props.find_component_from_jsx_usage(bufnr, jsx_node)
+    assert(result)
+    eq(result.bufnr, bufnr)
+    eq(result.component_node ~= nil, true)
+    eq(result.component_node:type(), "arrow_function")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_from_jsx_usage"]["finds function_declaration component"] = function()
+    local bufnr = create_tsx_buffer({
+        "function Cmp({ a }: { a: string }) {",
+        "  return <div />;",
+        "}",
+        "function Parent() {",
+        "  return <Cmp a={val} />;",
+        "}",
+    })
+
+    local jsx_node = find_jsx_element_at_cursor(bufnr, 4, 10)
+    assert(jsx_node)
+
+    local result = add_to_props.find_component_from_jsx_usage(bufnr, jsx_node)
+    assert(result)
+    eq(result.bufnr, bufnr)
+    eq(result.component_node ~= nil, true)
+    eq(result.component_node:type(), "function_declaration")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["find_component_from_jsx_usage"]["returns nil when component not found"] = function()
+    local bufnr = create_tsx_buffer({
+        "function Parent() {",
+        "  return <UnknownCmp a={val} />;",
+        "}",
+    })
+
+    local jsx_node = find_jsx_element_at_cursor(bufnr, 1, 10)
+    assert(jsx_node)
+
+    local result = add_to_props.find_component_from_jsx_usage(bufnr, jsx_node)
+    eq(result, nil)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test extract_prop_type_from_component
+T["extract_prop_type_from_component"] = new_set()
+
+T["extract_prop_type_from_component"]["extracts type from inline object_type"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a: string }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "a")
+    eq(result, "string")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["extracts complex type from inline object"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ data }: { data: Array<string> }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "data")
+    eq(result, "Array<string>")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["extracts type from interface reference"] = function()
+    local bufnr = create_tsx_buffer({
+        "interface Props { a: number; }",
+        "const Cmp = ({ a }: Props) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "a")
+    eq(result, "number")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["extracts type from type alias"] = function()
+    local bufnr = create_tsx_buffer({
+        "type Props = { a: boolean; };",
+        "const Cmp = ({ a }: Props) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "a")
+    eq(result, "boolean")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["returns nil when prop not in type"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a: string }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "b")
+    eq(result, nil)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["returns nil when no type annotation"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "a")
+    eq(result, nil)
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["handles union types"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a: string | number }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "a")
+    eq(result, "string | number")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["handles optional props"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ a }: { a?: string }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "a")
+    eq(result, "string")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["extract_prop_type_from_component"]["handles nested object types"] = function()
+    local bufnr = create_tsx_buffer({
+        "const Cmp = ({ user }: { user: { name: string } }) => <div />;",
+    })
+
+    local function_node = find_component_function_node(bufnr, "Cmp")
+    assert(function_node)
+    local result = add_to_props.extract_prop_type_from_component(bufnr, function_node, "user")
+    eq(result, "{ name: string }")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
 return T

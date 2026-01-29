@@ -309,6 +309,246 @@ local function find_type_declaration(bufnr, type_ref_name)
     return traverse(root)
 end
 
+local function get_jsx_context_for_undefined_var(bufnr, row, col, var_name)
+    local node = vim.treesitter.get_node({ bufnr = bufnr, pos = { row, col } })
+
+    if not node or node:type() ~= "identifier" then
+        return nil
+    end
+
+    local text = vim.treesitter.get_node_text(node, bufnr)
+    if text ~= var_name then
+        return nil
+    end
+
+    -- Walk up: identifier → jsx_expression → jsx_attribute → jsx_opening_element
+    local current = node:parent()
+
+    while current do
+        if current:type() == "jsx_expression" then
+            local jsx_attr = current:parent()
+            if jsx_attr and jsx_attr:type() == "jsx_attribute" then
+                -- Get prop name from property_identifier
+                local prop_name = nil
+                for child in jsx_attr:iter_children() do
+                    if child:type() == "property_identifier" then
+                        prop_name = vim.treesitter.get_node_text(child, bufnr)
+                        break
+                    end
+                end
+
+                if prop_name then
+                    local jsx_opening = jsx_attr:parent()
+                    if
+                        jsx_opening
+                        and (
+                            jsx_opening:type() == "jsx_opening_element"
+                            or jsx_opening:type() == "jsx_self_closing_element"
+                        )
+                    then
+                        return {
+                            prop_name = prop_name,
+                            jsx_element_node = jsx_opening,
+                        }
+                    end
+                end
+            end
+            break
+        end
+        current = current:parent()
+    end
+
+    return nil
+end
+
+local function find_component_from_jsx_usage(bufnr, jsx_element_node)
+    -- Extract component name from jsx_element_node
+    local component_name = nil
+    for child in jsx_element_node:iter_children() do
+        if child:type() == "identifier" or child:type() == "member_expression" then
+            component_name = vim.treesitter.get_node_text(child, bufnr)
+            break
+        end
+    end
+
+    if not component_name then
+        return nil
+    end
+
+    -- Search same file
+    local parser = vim.treesitter.get_parser(bufnr)
+    if not parser then
+        return nil
+    end
+
+    local trees = parser:parse()
+    if not trees or #trees == 0 then
+        return nil
+    end
+
+    local root = trees[1]:root()
+
+    local filetype = vim.bo[bufnr].filetype
+    local lang_map = {
+        javascript = "javascript",
+        typescript = "typescript",
+        javascriptreact = "tsx",
+        typescriptreact = "tsx",
+    }
+    local lang = lang_map[filetype]
+    if not lang then
+        return nil
+    end
+
+    -- Search for component in current file
+    local query_str = [[
+        (function_declaration
+            name: (identifier) @func_name) @func
+
+        (variable_declarator
+            name: (identifier) @var_name
+            value: [(arrow_function) (function_expression)] @func)
+    ]]
+
+    local ok, query = pcall(vim.treesitter.query.parse, lang, query_str)
+    if not ok then
+        return nil
+    end
+
+    for _, match, _ in query:iter_matches(root, bufnr) do
+        local func_node = nil
+        local name_node = nil
+
+        for id, node_or_nodes in pairs(match) do
+            local name = query.captures[id]
+            local nodes = node_or_nodes
+            local node = nodes[1] and type(nodes[1].range) == "function" and nodes[1] or nil
+
+            if name == "func" and node then
+                func_node = node
+            elseif (name == "func_name" or name == "var_name") and node then
+                name_node = node
+            end
+        end
+
+        if func_node and name_node then
+            local found_name = vim.treesitter.get_node_text(name_node, bufnr)
+            if found_name == component_name then
+                return { bufnr = bufnr, component_node = func_node }
+            end
+        end
+    end
+
+    -- Search imports using props_rename module
+    local props_rename = require("react.lsp.rename.props")
+    local import_info = props_rename.find_component_import(bufnr, root, component_name, lang)
+
+    if import_info and import_info.component_info then
+        return {
+            bufnr = import_info.component_info.bufnr,
+            component_node = import_info.component_info.node,
+        }
+    end
+
+    return nil
+end
+
+local function extract_type_string_from_node(type_node, bufnr)
+    return vim.treesitter.get_node_text(type_node, bufnr)
+end
+
+local function extract_prop_type_from_component(bufnr, component_node, prop_name)
+    -- Find formal_parameters
+    local params_node = nil
+    for child in component_node:iter_children() do
+        if child:type() == "formal_parameters" then
+            params_node = child
+            break
+        end
+    end
+
+    if not params_node then
+        return nil
+    end
+
+    local first_param = params_node:named_child(0)
+    if not first_param then
+        return nil
+    end
+
+    -- Extract type annotation
+    local type_annotation = nil
+    if first_param:type() == "required_parameter" then
+        local type_node = first_param:field("type")[1]
+        if type_node and type_node:type() == "type_annotation" then
+            type_annotation = type_node
+        end
+    elseif first_param:type() == "object_pattern" then
+        type_annotation = get_type_annotation(first_param)
+    end
+
+    if not type_annotation then
+        return nil
+    end
+
+    local type_node = type_annotation:named_child(0)
+    if not type_node then
+        return nil
+    end
+
+    -- Case 1: Inline object_type
+    if type_node:type() == "object_type" then
+        for child in type_node:iter_children() do
+            if child:type() == "property_signature" then
+                local prop_name_node = child:named_child(0)
+                if prop_name_node then
+                    local text = vim.treesitter.get_node_text(prop_name_node, bufnr)
+                    if text == prop_name then
+                        -- Extract type from property_signature
+                        for prop_child in child:iter_children() do
+                            if prop_child:type() == "type_annotation" then
+                                local prop_type = prop_child:named_child(0)
+                                if prop_type then
+                                    return extract_type_string_from_node(prop_type, bufnr)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Case 2: type_identifier reference
+    if type_node:type() == "type_identifier" then
+        local type_name = vim.treesitter.get_node_text(type_node, bufnr)
+        local type_decl = find_type_declaration(bufnr, type_name)
+
+        if type_decl and type_decl.node then
+            for child in type_decl.node:iter_children() do
+                if child:type() == "property_signature" then
+                    local prop_name_node = child:named_child(0)
+                    if prop_name_node then
+                        local text = vim.treesitter.get_node_text(prop_name_node, bufnr)
+                        if text == prop_name then
+                            for prop_child in child:iter_children() do
+                                if prop_child:type() == "type_annotation" then
+                                    local prop_type = prop_child:named_child(0)
+                                    if prop_type then
+                                        return extract_type_string_from_node(prop_type, bufnr)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
 local function already_in_destructuring(bufnr, pattern_node, var_name)
     for child in pattern_node:iter_children() do
         if child:type() == "shorthand_property_identifier_pattern" then
@@ -529,7 +769,7 @@ local function create_type_annotation_edit(bufnr, type_annotation, var_name)
     return nil
 end
 
-local function apply_edits(bufnr, edits)
+local function apply_edits(bufnr, edits, inferred_type)
     local normal_edits = {}
     local snippet_edit = nil
 
@@ -599,8 +839,13 @@ local function apply_edits(bufnr, edits)
                 local expand_row = snippet_edit.row + 1
                 local expand_col = #indent + #var_name
 
+                -- Priority: JSX-inferred type, event handler heuristic, unknown
+                local type_placeholder = inferred_type
+                    or (is_event_handler_prop(var_name) and "() => void")
+                    or "unknown"
+
                 local snip
-                if is_event_handler_prop(var_name) then
+                if type_placeholder == "() => void" then
                     snip = s("", {
                         t("?"),
                         i(1),
@@ -614,7 +859,7 @@ local function apply_edits(bufnr, edits)
                         t("?"),
                         i(1),
                         t(": "),
-                        i(2, "unknown"),
+                        i(2, type_placeholder),
                     })
                 end
 
@@ -626,7 +871,9 @@ local function apply_edits(bufnr, edits)
             -- Fallback: insert text and position cursor at type location
             local var_name = snippet_edit.snippet.var_name
             local indent = snippet_edit.snippet.indent
-            local type_placeholder = is_event_handler_prop(var_name) and "() => void" or "unknown"
+            local type_placeholder = inferred_type
+                or (is_event_handler_prop(var_name) and "() => void")
+                or "unknown"
             local text = string.format("\n%s%s?: %s", indent, var_name, type_placeholder)
 
             vim.api.nvim_buf_set_text(
@@ -657,6 +904,27 @@ function M.get_source(null_ls)
 
                 if not var_name then
                     return nil
+                end
+
+                -- Try JSX context for type inference
+                local jsx_ctx = get_jsx_context_for_undefined_var(
+                    params.bufnr,
+                    params.row - 1,
+                    params.col,
+                    var_name
+                )
+                local inferred_type = nil
+
+                if jsx_ctx then
+                    local comp_info =
+                        find_component_from_jsx_usage(params.bufnr, jsx_ctx.jsx_element_node)
+                    if comp_info then
+                        inferred_type = extract_prop_type_from_component(
+                            comp_info.bufnr,
+                            comp_info.component_node,
+                            jsx_ctx.prop_name
+                        )
+                    end
                 end
 
                 local comp_params = find_component_params(params.bufnr, params.row - 1, params.col)
@@ -698,7 +966,7 @@ function M.get_source(null_ls)
                     table.insert(actions, {
                         title = title,
                         action = function()
-                            apply_edits(params.bufnr, edits)
+                            apply_edits(params.bufnr, edits, inferred_type)
                         end,
                     })
                 end
@@ -714,7 +982,7 @@ function M.get_source(null_ls)
                         table.insert(actions, {
                             title = string.format("Add '%s' to Props type", var_name),
                             action = function()
-                                apply_edits(params.bufnr, { type_edit })
+                                apply_edits(params.bufnr, { type_edit }, inferred_type)
                             end,
                         })
                     end
@@ -761,7 +1029,7 @@ function M.get_source(null_ls)
                                     interface_name
                                 ),
                                 action = function()
-                                    apply_edits(params.bufnr, edits)
+                                    apply_edits(params.bufnr, edits, inferred_type)
                                 end,
                             })
                         else
@@ -775,7 +1043,7 @@ function M.get_source(null_ls)
                             table.insert(actions, {
                                 title = string.format("Add '%s' to props", var_name),
                                 action = function()
-                                    apply_edits(params.bufnr, { param_edit })
+                                    apply_edits(params.bufnr, { param_edit }, inferred_type)
                                 end,
                             })
                         end
@@ -790,7 +1058,7 @@ function M.get_source(null_ls)
                         table.insert(actions, {
                             title = string.format("Add '%s' to props", var_name),
                             action = function()
-                                apply_edits(params.bufnr, { param_edit })
+                                apply_edits(params.bufnr, { param_edit }, inferred_type)
                             end,
                         })
                     end
@@ -813,5 +1081,8 @@ M.create_no_params_destructuring_edit = create_no_params_destructuring_edit
 M.create_interface_edit = create_interface_edit
 M.find_type_declaration = find_type_declaration
 M.is_event_handler_prop = is_event_handler_prop
+M.get_jsx_context_for_undefined_var = get_jsx_context_for_undefined_var
+M.find_component_from_jsx_usage = find_component_from_jsx_usage
+M.extract_prop_type_from_component = extract_prop_type_from_component
 
 return M
