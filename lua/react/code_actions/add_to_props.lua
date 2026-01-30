@@ -309,6 +309,266 @@ local function find_type_declaration(bufnr, type_ref_name)
     return traverse(root)
 end
 
+local function get_jsx_context_for_undefined_var(bufnr, row, col, var_name)
+    local node = vim.treesitter.get_node({ bufnr = bufnr, pos = { row, col } })
+
+    if not node or node:type() ~= "identifier" then
+        return nil
+    end
+
+    local text = vim.treesitter.get_node_text(node, bufnr)
+    if text ~= var_name then
+        return nil
+    end
+
+    -- Walk up: identifier → jsx_expression → jsx_attribute → jsx_opening_element
+    local current = node:parent()
+
+    while current do
+        if current:type() == "jsx_expression" then
+            local jsx_attr = current:parent()
+            if jsx_attr and jsx_attr:type() == "jsx_attribute" then
+                -- Get prop name from property_identifier
+                local prop_name = nil
+                for child in jsx_attr:iter_children() do
+                    if child:type() == "property_identifier" then
+                        prop_name = vim.treesitter.get_node_text(child, bufnr)
+                        break
+                    end
+                end
+
+                if prop_name then
+                    local jsx_opening = jsx_attr:parent()
+                    if
+                        jsx_opening
+                        and (
+                            jsx_opening:type() == "jsx_opening_element"
+                            or jsx_opening:type() == "jsx_self_closing_element"
+                        )
+                    then
+                        return {
+                            prop_name = prop_name,
+                            jsx_element_node = jsx_opening,
+                        }
+                    end
+                end
+            end
+            break
+        end
+        current = current:parent()
+    end
+
+    return nil
+end
+
+local function find_component_from_jsx_usage(bufnr, jsx_element_node)
+    -- Extract component name from jsx_element_node
+    local component_name = nil
+    for child in jsx_element_node:iter_children() do
+        if child:type() == "identifier" or child:type() == "member_expression" then
+            component_name = vim.treesitter.get_node_text(child, bufnr)
+            break
+        end
+    end
+
+    if not component_name then
+        return nil
+    end
+
+    -- Search same file
+    local parser = vim.treesitter.get_parser(bufnr)
+    if not parser then
+        return nil
+    end
+
+    local trees = parser:parse()
+    if not trees or #trees == 0 then
+        return nil
+    end
+
+    local root = trees[1]:root()
+
+    local filetype = vim.bo[bufnr].filetype
+    local lang_map = {
+        javascript = "javascript",
+        typescript = "typescript",
+        javascriptreact = "tsx",
+        typescriptreact = "tsx",
+    }
+    local lang = lang_map[filetype]
+    if not lang then
+        return nil
+    end
+
+    -- Search for component in current file
+    local query_str = [[
+        (function_declaration
+            name: (identifier) @func_name) @func
+
+        (variable_declarator
+            name: (identifier) @var_name
+            value: [(arrow_function) (function_expression)] @func)
+    ]]
+
+    local ok, query = pcall(vim.treesitter.query.parse, lang, query_str)
+    if not ok then
+        return nil
+    end
+
+    for _, match, _ in query:iter_matches(root, bufnr) do
+        local func_node = nil
+        local name_node = nil
+
+        for id, node_or_nodes in pairs(match) do
+            local name = query.captures[id]
+            local nodes = node_or_nodes
+            local node = nodes[1] and type(nodes[1].range) == "function" and nodes[1] or nil
+
+            if name == "func" and node then
+                func_node = node
+            elseif (name == "func_name" or name == "var_name") and node then
+                name_node = node
+            end
+        end
+
+        if func_node and name_node then
+            local found_name = vim.treesitter.get_node_text(name_node, bufnr)
+            if found_name == component_name then
+                return { bufnr = bufnr, component_node = func_node }
+            end
+        end
+    end
+
+    -- Search imports using props_rename module
+    local props_rename = require("react.lsp.rename.props")
+    local import_info = props_rename.find_component_import(bufnr, root, component_name, lang)
+
+    if import_info and import_info.component_info then
+        return {
+            bufnr = import_info.component_info.bufnr,
+            component_node = import_info.component_info.node,
+        }
+    end
+
+    return nil
+end
+
+local function extract_type_string_from_node(type_node, bufnr)
+    return vim.treesitter.get_node_text(type_node, bufnr)
+end
+
+local function extract_prop_type_from_component(bufnr, component_node, prop_name)
+    -- Find formal_parameters
+    local params_node = nil
+    for child in component_node:iter_children() do
+        if child:type() == "formal_parameters" then
+            params_node = child
+            break
+        end
+    end
+
+    if not params_node then
+        return nil
+    end
+
+    local first_param = params_node:named_child(0)
+    if not first_param then
+        return nil
+    end
+
+    -- Extract type annotation
+    local type_annotation = nil
+    if first_param:type() == "required_parameter" then
+        local type_node = first_param:field("type")[1]
+        if type_node and type_node:type() == "type_annotation" then
+            type_annotation = type_node
+        end
+    elseif first_param:type() == "object_pattern" then
+        type_annotation = get_type_annotation(first_param)
+    end
+
+    if not type_annotation then
+        return nil
+    end
+
+    local type_node = type_annotation:named_child(0)
+    if not type_node then
+        return nil
+    end
+
+    -- Case 1: Inline object_type
+    if type_node:type() == "object_type" then
+        for child in type_node:iter_children() do
+            if child:type() == "property_signature" then
+                local prop_name_node = child:named_child(0)
+                if prop_name_node then
+                    local text = vim.treesitter.get_node_text(prop_name_node, bufnr)
+                    if text == prop_name then
+                        -- Check for optional marker
+                        local has_optional = false
+                        for prop_child in child:iter_children() do
+                            if prop_child:type() == "?" then
+                                has_optional = true
+                            end
+                        end
+                        -- Extract type from property_signature
+                        for prop_child in child:iter_children() do
+                            if prop_child:type() == "type_annotation" then
+                                local prop_type = prop_child:named_child(0)
+                                if prop_type then
+                                    return {
+                                        type = extract_type_string_from_node(prop_type, bufnr),
+                                        optional = has_optional,
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Case 2: type_identifier reference
+    if type_node:type() == "type_identifier" then
+        local type_name = vim.treesitter.get_node_text(type_node, bufnr)
+        local type_decl = find_type_declaration(bufnr, type_name)
+
+        if type_decl and type_decl.node then
+            for child in type_decl.node:iter_children() do
+                if child:type() == "property_signature" then
+                    local prop_name_node = child:named_child(0)
+                    if prop_name_node then
+                        local text = vim.treesitter.get_node_text(prop_name_node, bufnr)
+                        if text == prop_name then
+                            -- Check for optional marker
+                            local has_optional = false
+                            for prop_child in child:iter_children() do
+                                if prop_child:type() == "?" then
+                                    has_optional = true
+                                end
+                            end
+                            for prop_child in child:iter_children() do
+                                if prop_child:type() == "type_annotation" then
+                                    local prop_type = prop_child:named_child(0)
+                                    if prop_type then
+                                        return {
+                                            type = extract_type_string_from_node(prop_type, bufnr),
+                                            optional = has_optional,
+                                        }
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
 local function already_in_destructuring(bufnr, pattern_node, var_name)
     for child in pattern_node:iter_children() do
         if child:type() == "shorthand_property_identifier_pattern" then
@@ -452,24 +712,31 @@ local function create_interface_edit(bufnr, function_node, interface_name, var_n
         return nil
     end
 
-    -- Find the declaration node (lexical_declaration or variable_declaration)
-    local decl_node = function_node:parent()
+    local decl_start_row
 
-    while decl_node do
-        local node_type = decl_node:type()
+    -- For function_declaration, use the function node itself
+    if function_node:type() == "function_declaration" then
+        decl_start_row = (function_node:range())
+    else
+        -- Find the declaration node (lexical_declaration or variable_declaration)
+        local decl_node = function_node:parent()
 
-        if node_type == "lexical_declaration" or node_type == "variable_declaration" then
-            break
+        while decl_node do
+            local node_type = decl_node:type()
+
+            if node_type == "lexical_declaration" or node_type == "variable_declaration" then
+                break
+            end
+
+            decl_node = decl_node:parent()
         end
 
-        decl_node = decl_node:parent()
-    end
+        if not decl_node then
+            return nil
+        end
 
-    if not decl_node then
-        return nil
+        decl_start_row = (decl_node:range())
     end
-
-    local decl_start_row, _ = decl_node:range()
 
     local indent = get_line_indent(bufnr, decl_start_row)
     local prop_indent = indent .. "  "
@@ -529,7 +796,10 @@ local function create_type_annotation_edit(bufnr, type_annotation, var_name)
     return nil
 end
 
-local function apply_edits(bufnr, edits)
+local function apply_edits(bufnr, edits, inferred_type, saved_cursor_pos)
+    -- Use saved cursor position from when code action was triggered
+    local initial_cursor_pos = saved_cursor_pos or vim.api.nvim_win_get_cursor(0)
+
     local normal_edits = {}
     local snippet_edit = nil
 
@@ -556,8 +826,17 @@ local function apply_edits(bufnr, edits)
         return a_row > b_row
     end)
 
+    -- Track how normal edits affect cursor position
+    local cursor_row_shift = 0
     for _, edit in ipairs(normal_edits) do
         local lines = vim.split(edit.text, "\n")
+        local edit_row = edit.row_start or edit.row
+        local initial_row_0indexed = initial_cursor_pos[1] - 1
+
+        -- If edit is before cursor row, cursor shifts down
+        if edit_row < initial_row_0indexed then
+            cursor_row_shift = cursor_row_shift + (#lines - 1)
+        end
 
         if edit.row_start then
             vim.api.nvim_buf_set_text(
@@ -574,17 +853,13 @@ local function apply_edits(bufnr, edits)
     end
 
     if snippet_edit then
-        local ok, luasnip = pcall(require, "luasnip")
-
-        if ok then
-            local s = luasnip.snippet
-            local t = luasnip.text_node
-            local i = luasnip.insert_node
-
+        -- Direct insert when we have inferred type
+        if inferred_type and inferred_type.type then
             local var_name = snippet_edit.snippet.var_name
             local indent = snippet_edit.snippet.indent
-
-            local text = string.format("\n%s%s", indent, var_name)
+            local optional_marker = inferred_type.optional and "?" or ""
+            local text =
+                string.format("\n%s%s%s: %s", indent, var_name, optional_marker, inferred_type.type)
 
             vim.api.nvim_buf_set_text(
                 bufnr,
@@ -595,53 +870,102 @@ local function apply_edits(bufnr, edits)
                 vim.split(text, "\n")
             )
 
-            vim.schedule(function()
-                local expand_row = snippet_edit.row + 1
-                local expand_col = #indent + #var_name
+            -- Restore cursor position using initial position
+            local lines_added_by_snippet = #vim.split(text, "\n") - 1
+            local initial_row_0indexed = initial_cursor_pos[1] - 1
+            local initial_col = initial_cursor_pos[2]
 
-                local snip
-                if is_event_handler_prop(var_name) then
-                    snip = s("", {
-                        t("?"),
-                        i(1),
-                        t(": ("),
-                        i(2),
-                        t(") => "),
-                        i(3, "void"),
-                    })
-                else
-                    snip = s("", {
-                        t("?"),
-                        i(1),
-                        t(": "),
-                        i(2, "unknown"),
-                    })
-                end
+            -- Calculate final cursor position
+            local final_row = initial_cursor_pos[1] + cursor_row_shift
+            local final_col = initial_col
 
-                luasnip.snip_expand(snip, { pos = { expand_row, expand_col } })
-            end)
+            if initial_row_0indexed > snippet_edit.row then
+                -- Cursor is after snippet insertion row, shift down by snippet lines
+                final_row = final_row + lines_added_by_snippet
+            elseif initial_row_0indexed == snippet_edit.row and initial_col >= snippet_edit.col then
+                -- Cursor is on same row as snippet and after insertion point
+                -- Content gets moved to next line
+                final_row = final_row + lines_added_by_snippet
+                final_col = initial_col - snippet_edit.col
+            end
+
+            vim.api.nvim_win_set_cursor(0, { final_row, final_col })
         else
-            print("Install LuaSnip for a better development experience.")
+            -- LuaSnip snippet for event handlers/unknown
+            local ok, luasnip = pcall(require, "luasnip")
 
-            -- Fallback: insert text and position cursor at type location
-            local var_name = snippet_edit.snippet.var_name
-            local indent = snippet_edit.snippet.indent
-            local type_placeholder = is_event_handler_prop(var_name) and "() => void" or "unknown"
-            local text = string.format("\n%s%s?: %s", indent, var_name, type_placeholder)
+            if ok then
+                local s = luasnip.snippet
+                local t = luasnip.text_node
+                local i = luasnip.insert_node
 
-            vim.api.nvim_buf_set_text(
-                bufnr,
-                snippet_edit.row,
-                snippet_edit.col,
-                snippet_edit.row,
-                snippet_edit.col,
-                vim.split(text, "\n")
-            )
+                local var_name = snippet_edit.snippet.var_name
+                local indent = snippet_edit.snippet.indent
 
-            local col_offset = is_event_handler_prop(var_name) and #indent + #var_name + 4
-                or #indent + #var_name + 3
-            vim.api.nvim_win_set_cursor(0, { snippet_edit.row + 2, col_offset })
-            vim.cmd("startinsert")
+                local text = string.format("\n%s%s", indent, var_name)
+
+                vim.api.nvim_buf_set_text(
+                    bufnr,
+                    snippet_edit.row,
+                    snippet_edit.col,
+                    snippet_edit.row,
+                    snippet_edit.col,
+                    vim.split(text, "\n")
+                )
+
+                vim.schedule(function()
+                    local expand_row = snippet_edit.row + 1
+                    local expand_col = #indent + #var_name
+
+                    -- Event handler heuristic or unknown
+                    local type_placeholder = (is_event_handler_prop(var_name) and "() => void")
+                        or "unknown"
+
+                    local snip
+                    if type_placeholder == "() => void" then
+                        snip = s("", {
+                            t("?"),
+                            i(1),
+                            t(": ("),
+                            i(2),
+                            t(") => "),
+                            i(3, "void"),
+                        })
+                    else
+                        snip = s("", {
+                            t("?"),
+                            i(1),
+                            t(": "),
+                            i(2, type_placeholder),
+                        })
+                    end
+
+                    luasnip.snip_expand(snip, { pos = { expand_row, expand_col } })
+                end)
+            else
+                print("Install LuaSnip for a better development experience.")
+
+                -- Fallback: insert text and position cursor at type location
+                local var_name = snippet_edit.snippet.var_name
+                local indent = snippet_edit.snippet.indent
+                local type_placeholder = (is_event_handler_prop(var_name) and "() => void")
+                    or "unknown"
+                local text = string.format("\n%s%s?: %s", indent, var_name, type_placeholder)
+
+                vim.api.nvim_buf_set_text(
+                    bufnr,
+                    snippet_edit.row,
+                    snippet_edit.col,
+                    snippet_edit.row,
+                    snippet_edit.col,
+                    vim.split(text, "\n")
+                )
+
+                local col_offset = is_event_handler_prop(var_name) and #indent + #var_name + 4
+                    or #indent + #var_name + 3
+                vim.api.nvim_win_set_cursor(0, { snippet_edit.row + 2, col_offset })
+                vim.cmd("startinsert")
+            end
         end
     end
 end
@@ -653,10 +977,34 @@ function M.get_source(null_ls)
         method = null_ls.methods.CODE_ACTION,
         generator = {
             fn = function(params)
+                -- Capture cursor position when code action is triggered
+                local cursor_pos = vim.api.nvim_win_get_cursor(0)
+
                 local var_name = get_undefined_var_at_cursor(params)
 
                 if not var_name then
                     return nil
+                end
+
+                -- Try JSX context for type inference
+                local jsx_ctx = get_jsx_context_for_undefined_var(
+                    params.bufnr,
+                    params.row - 1,
+                    params.col,
+                    var_name
+                )
+                local inferred_type = nil
+
+                if jsx_ctx then
+                    local comp_info =
+                        find_component_from_jsx_usage(params.bufnr, jsx_ctx.jsx_element_node)
+                    if comp_info then
+                        inferred_type = extract_prop_type_from_component(
+                            comp_info.bufnr,
+                            comp_info.component_node,
+                            jsx_ctx.prop_name
+                        )
+                    end
                 end
 
                 local comp_params = find_component_params(params.bufnr, params.row - 1, params.col)
@@ -698,7 +1046,7 @@ function M.get_source(null_ls)
                     table.insert(actions, {
                         title = title,
                         action = function()
-                            apply_edits(params.bufnr, edits)
+                            apply_edits(params.bufnr, edits, inferred_type, cursor_pos)
                         end,
                     })
                 end
@@ -714,7 +1062,7 @@ function M.get_source(null_ls)
                         table.insert(actions, {
                             title = string.format("Add '%s' to Props type", var_name),
                             action = function()
-                                apply_edits(params.bufnr, { type_edit })
+                                apply_edits(params.bufnr, { type_edit }, inferred_type, cursor_pos)
                             end,
                         })
                     end
@@ -727,8 +1075,7 @@ function M.get_source(null_ls)
                     local edits = {}
 
                     if is_typescript then
-                        local comp_name =
-                            extract_component_name(params.bufnr, comp_params.function_node)
+                        local comp_name = get_function_name(params.bufnr, comp_params.function_node)
 
                         if comp_name then
                             local interface_name = comp_name .. "Props"
@@ -761,7 +1108,7 @@ function M.get_source(null_ls)
                                     interface_name
                                 ),
                                 action = function()
-                                    apply_edits(params.bufnr, edits)
+                                    apply_edits(params.bufnr, edits, inferred_type, cursor_pos)
                                 end,
                             })
                         else
@@ -775,7 +1122,12 @@ function M.get_source(null_ls)
                             table.insert(actions, {
                                 title = string.format("Add '%s' to props", var_name),
                                 action = function()
-                                    apply_edits(params.bufnr, { param_edit })
+                                    apply_edits(
+                                        params.bufnr,
+                                        { param_edit },
+                                        inferred_type,
+                                        cursor_pos
+                                    )
                                 end,
                             })
                         end
@@ -790,7 +1142,7 @@ function M.get_source(null_ls)
                         table.insert(actions, {
                             title = string.format("Add '%s' to props", var_name),
                             action = function()
-                                apply_edits(params.bufnr, { param_edit })
+                                apply_edits(params.bufnr, { param_edit }, inferred_type, cursor_pos)
                             end,
                         })
                     end
@@ -813,5 +1165,8 @@ M.create_no_params_destructuring_edit = create_no_params_destructuring_edit
 M.create_interface_edit = create_interface_edit
 M.find_type_declaration = find_type_declaration
 M.is_event_handler_prop = is_event_handler_prop
+M.get_jsx_context_for_undefined_var = get_jsx_context_for_undefined_var
+M.find_component_from_jsx_usage = find_component_from_jsx_usage
+M.extract_prop_type_from_component = extract_prop_type_from_component
 
 return M
