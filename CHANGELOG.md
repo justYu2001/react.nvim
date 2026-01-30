@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/justYu2001/react.nvim/compare/v0.8.0...v0.9.0) (2026-01-30)
+
+
+### Features
+
+* infer prop type from jsx context ([#21](https://github.com/justYu2001/react.nvim/issues/21)) ([db0999f](https://github.com/justYu2001/react.nvim/commit/db0999f5c5b26f182f3956450b289856ba45739c))
+
+
+### Bug Fixes
+
+* props menu only for React components ([#23](https://github.com/justYu2001/react.nvim/issues/23)) ([68c1c5b](https://github.com/justYu2001/react.nvim/commit/68c1c5b4e3d48e746375f027fac7a3f4e26f2f13))
+
 ## [0.8.0](https://github.com/justYu2001/react.nvim/compare/v0.7.0...v0.8.0) (2026-01-28)
 
 
