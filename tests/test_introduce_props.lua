@@ -674,4 +674,156 @@ T["function_type_pattern"]["no_match_for_non_function_types"] = function()
     eq(("Promise<void>"):match("^%(%s*%)%s*=>") ~= nil, false)
 end
 
+-- Arrow function type inference tests
+T["arrow_function_inference"] = new_set()
+
+T["arrow_function_inference"]["single_typed_param"] = function()
+    local bufnr = create_tsx_buffer({ "const handler = (value: string) => {}" })
+    local value_node = get_value_node_from_jsx(bufnr, 0, 16)
+
+    if value_node then
+        local inferred_type = introduce_props.infer_type(bufnr, value_node)
+        eq(inferred_type:match("%(value: string%).*=>.*void") ~= nil, true)
+    end
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["arrow_function_inference"]["multi_param"] = function()
+    local bufnr = create_tsx_buffer({ "const handler = (e: Event, data: string) => {}" })
+    local value_node = get_value_node_from_jsx(bufnr, 0, 16)
+
+    if value_node then
+        local inferred_type = introduce_props.infer_type(bufnr, value_node)
+        eq(inferred_type:match("%(e: Event, data: string%).*=>.*void") ~= nil, true)
+    end
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["arrow_function_inference"]["optional_param"] = function()
+    local bufnr = create_tsx_buffer({ "const handler = (value?: string) => {}" })
+    local value_node = get_value_node_from_jsx(bufnr, 0, 16)
+
+    if value_node then
+        local inferred_type = introduce_props.infer_type(bufnr, value_node)
+        eq(inferred_type:match("%(value%?: string%).*=>.*void") ~= nil, true)
+    end
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["arrow_function_inference"]["explicit_return_type"] = function()
+    local bufnr = create_tsx_buffer({ "const handler = (val: string): boolean => true" })
+    local value_node = get_value_node_from_jsx(bufnr, 0, 16)
+
+    if value_node then
+        local inferred_type = introduce_props.infer_type(bufnr, value_node)
+        eq(inferred_type, "(val: string) => boolean")
+    end
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["arrow_function_inference"]["untyped_param"] = function()
+    local bufnr = create_tsx_buffer({ "const handler = (value) => {}" })
+    local value_node = get_value_node_from_jsx(bufnr, 0, 16)
+
+    if value_node then
+        local inferred_type = introduce_props.infer_type(bufnr, value_node)
+        eq(inferred_type, "(value) => void")
+    end
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["jsx_cleanup"] = new_set()
+
+T["jsx_cleanup"]["removes_single_param_type_annotation"] = function()
+    local bufnr = create_tsx_buffer({
+        "<Component onClick={(value: string) => {}} />",
+    })
+
+    -- Get jsx_expression containing arrow function
+    local value_node = get_value_node_from_jsx(bufnr, 0, 20) -- position in JSX
+
+    -- Create cleanup edits
+    local cleanup_edits = introduce_props.create_jsx_cleanup_edit(bufnr, value_node)
+
+    -- Apply edits in reverse order
+    table.sort(cleanup_edits, function(a, b)
+        if a.row_start == b.row_start then
+            return a.col_start > b.col_start
+        end
+        return a.row_start > b.row_start
+    end)
+
+    for _, edit in ipairs(cleanup_edits) do
+        vim.api.nvim_buf_set_text(
+            bufnr,
+            edit.row_start,
+            edit.col_start,
+            edit.row_end,
+            edit.col_end,
+            vim.split(edit.text, "\n")
+        )
+    end
+
+    -- Verify result
+    local result = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)[1]
+    eq(result, "<Component onClick={(value) => {}} />")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["jsx_cleanup"]["removes_multi_param_type_annotations"] = function()
+    local bufnr = create_tsx_buffer({
+        "<Component onChange={(e: Event, data: string) => {}} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 0, 20)
+    local cleanup_edits = introduce_props.create_jsx_cleanup_edit(bufnr, value_node)
+
+    -- Apply edits
+    table.sort(cleanup_edits, function(a, b)
+        if a.row_start == b.row_start then
+            return a.col_start > b.col_start
+        end
+        return a.row_start > b.row_start
+    end)
+
+    for _, edit in ipairs(cleanup_edits) do
+        vim.api.nvim_buf_set_text(
+            bufnr,
+            edit.row_start,
+            edit.col_start,
+            edit.row_end,
+            edit.col_end,
+            vim.split(edit.text, "\n")
+        )
+    end
+
+    local result = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)[1]
+    eq(result, "<Component onChange={(e, data) => {}} />")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+T["jsx_cleanup"]["preserves_untyped_params"] = function()
+    local bufnr = create_tsx_buffer({
+        "<Component onClick={(value) => {}} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 0, 20)
+    local cleanup_edits = introduce_props.create_jsx_cleanup_edit(bufnr, value_node)
+
+    -- Should return empty edits (no type annotations to remove)
+    eq(#cleanup_edits, 0)
+
+    local result = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)[1]
+    eq(result, "<Component onClick={(value) => {}} />")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
 return T

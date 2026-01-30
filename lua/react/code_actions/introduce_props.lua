@@ -585,6 +585,150 @@ end
 ---@param bufnr number
 ---@param value_node TSNode
 ---@return string|nil inferred type or nil
+local function infer_type_from_arrow_function(bufnr, value_node)
+    if not value_node then
+        return nil
+    end
+
+    local node = value_node
+    local node_type = node:type()
+
+    -- Unwrap jsx_expression
+    if node_type == "jsx_expression" then
+        local inner_node = node:named_child(0)
+        if inner_node then
+            node = inner_node
+            node_type = node:type()
+        end
+    end
+
+    -- Check if arrow_function, function_expression, or async variants
+    if
+        node_type ~= "arrow_function"
+        and node_type ~= "function_expression"
+        and node_type ~= "function"
+    then
+        return nil
+    end
+
+    local is_async = false
+    -- Check for async
+    for child in node:iter_children() do
+        if child:type() == "async" then
+            is_async = true
+            break
+        end
+    end
+
+    -- Extract formal_parameters
+    local formal_parameters = nil
+    for child in node:iter_children() do
+        if child:type() == "formal_parameters" then
+            formal_parameters = child
+            break
+        end
+    end
+
+    if not formal_parameters then
+        return nil
+    end
+
+    -- Build parameter string
+    local params = {}
+    for param in formal_parameters:iter_children() do
+        local param_type = param:type()
+        if
+            param_type == "required_parameter"
+            or param_type == "optional_parameter"
+            or param_type == "rest_parameter"
+        then
+            local param_name = nil
+            local param_type_str = nil
+            local is_optional = param_type == "optional_parameter"
+
+            for param_child in param:iter_children() do
+                local child_type = param_child:type()
+
+                if child_type == "identifier" then
+                    param_name = vim.treesitter.get_node_text(param_child, bufnr)
+                elseif child_type == "rest_pattern" then
+                    -- Rest parameter (...args)
+                    param_name = vim.treesitter.get_node_text(param_child, bufnr)
+                elseif child_type == "object_pattern" or child_type == "array_pattern" then
+                    -- Destructured param - get full pattern
+                    param_name = vim.treesitter.get_node_text(param_child, bufnr)
+                elseif child_type == "type_annotation" then
+                    param_type_str = extract_type_from_annotation(param_child, bufnr)
+                end
+            end
+
+            if param_name then
+                local param_str = param_name
+
+                if is_optional then
+                    param_str = param_str .. "?"
+                end
+
+                if param_type_str then
+                    param_str = param_str .. ": " .. param_type_str
+                end
+
+                table.insert(params, param_str)
+            end
+        end
+    end
+
+    local params_str = table.concat(params, ", ")
+
+    -- Infer return type
+    local return_type = nil
+
+    -- Check for explicit return type annotation
+    for child in node:iter_children() do
+        if child:type() == "type_annotation" then
+            return_type = extract_type_from_annotation(child, bufnr)
+            break
+        end
+    end
+
+    -- If no explicit type, analyze body
+    if not return_type then
+        local body_node = nil
+        for child in node:iter_children() do
+            if child:type() == "statement_block" then
+                body_node = child
+                break
+            end
+        end
+
+        if body_node then
+            -- Check for return statement
+            local has_return = false
+            for child in body_node:iter_children() do
+                if child:type() == "return_statement" then
+                    has_return = true
+                    break
+                end
+            end
+
+            return_type = has_return and "unknown" or "void"
+        else
+            -- Expression body (implicit return)
+            return_type = "unknown"
+        end
+    end
+
+    -- Wrap in Promise if async
+    if is_async and return_type and not return_type:match("^Promise<") then
+        return_type = "Promise<" .. return_type .. ">"
+    end
+
+    return "(" .. params_str .. ") => " .. return_type
+end
+
+---@param bufnr number
+---@param value_node TSNode
+---@return string|nil inferred type or nil
 local function infer_type_from_lsp_hover(bufnr, value_node)
     ---@diagnostic disable-next-line: unused-local
     local sr, sc = value_node:range()
@@ -644,6 +788,14 @@ local function infer_type(bufnr, value_node)
         return literal_type
     end
 
+    -- Try arrow function (medium priority)
+    if value_node then
+        local arrow_type = infer_type_from_arrow_function(bufnr, value_node)
+        if arrow_type then
+            return arrow_type
+        end
+    end
+
     -- Try static analysis (medium)
     if value_node then
         local var_type = infer_type_from_variable_declaration(bufnr, value_node)
@@ -665,12 +817,96 @@ local function infer_type(bufnr, value_node)
     return "unknown"
 end
 
+---@param _bufnr number
+---@param value_node TSNode|nil
+---@return table[] edits
+local function create_jsx_cleanup_edit(_bufnr, value_node)
+    local edits = {}
+
+    if not value_node then
+        return edits
+    end
+
+    local node = value_node
+    local node_type = node:type()
+
+    -- Unwrap jsx_expression
+    if node_type == "jsx_expression" then
+        local inner_node = node:named_child(0)
+        if inner_node then
+            node = inner_node
+            node_type = node:type()
+        end
+    end
+
+    -- Check if arrow_function
+    if node_type ~= "arrow_function" then
+        return edits
+    end
+
+    -- Find formal_parameters
+    local formal_parameters = nil
+    for child in node:iter_children() do
+        if child:type() == "formal_parameters" then
+            formal_parameters = child
+            break
+        end
+    end
+
+    if not formal_parameters then
+        return edits
+    end
+
+    -- For each parameter with type annotation, remove the annotation
+    for param in formal_parameters:iter_children() do
+        local param_type = param:type()
+        if param_type == "required_parameter" or param_type == "optional_parameter" then
+            local identifier_node = nil
+            local type_annotation_node = nil
+
+            for param_child in param:iter_children() do
+                local child_type = param_child:type()
+
+                if child_type == "identifier" then
+                    identifier_node = param_child
+                elseif child_type == "type_annotation" then
+                    type_annotation_node = param_child
+                end
+            end
+
+            if identifier_node and type_annotation_node then
+                local _, _, name_end_row, name_end_col = identifier_node:range()
+                local _, _, type_end_row, type_end_col = type_annotation_node:range()
+
+                table.insert(edits, {
+                    row_start = name_end_row,
+                    col_start = name_end_col,
+                    row_end = type_end_row,
+                    col_end = type_end_col,
+                    text = "",
+                })
+            end
+        end
+    end
+
+    return edits
+end
+
 ---@param target_bufnr number buffer where component is defined
 ---@param comp_params table component params info
 ---@param prop_name string
 ---@param prop_type string
+---@param source_bufnr number|nil source buffer with JSX
+---@param value_node TSNode|nil value node from JSX
 ---@return table[] edits
-local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type)
+local function create_prop_edits(
+    target_bufnr,
+    comp_params,
+    prop_name,
+    prop_type,
+    source_bufnr,
+    value_node
+)
     local edits = {}
 
     if comp_params.type == "destructured" then
@@ -836,6 +1072,15 @@ local function create_prop_edits(target_bufnr, comp_params, prop_name, prop_type
         end
     end
 
+    -- Add JSX cleanup
+    if source_bufnr and value_node then
+        local cleanup_edits = create_jsx_cleanup_edit(source_bufnr, value_node)
+        for _, edit in ipairs(cleanup_edits) do
+            edit.bufnr = source_bufnr
+            table.insert(edits, edit)
+        end
+    end
+
     return edits
 end
 
@@ -870,10 +1115,11 @@ local function apply_edits(bufnr, edits)
 
     for _, edit in ipairs(normal_edits) do
         local lines = vim.split(edit.text, "\n")
+        local target_bufnr = edit.bufnr or bufnr
 
         if edit.row_start then
             vim.api.nvim_buf_set_text(
-                bufnr,
+                target_bufnr,
                 edit.row_start,
                 edit.col_start,
                 edit.row_end,
@@ -881,7 +1127,7 @@ local function apply_edits(bufnr, edits)
                 lines
             )
         else
-            vim.api.nvim_buf_set_text(bufnr, edit.row, edit.col, edit.row, edit.col, lines)
+            vim.api.nvim_buf_set_text(target_bufnr, edit.row, edit.col, edit.row, edit.col, lines)
         end
     end
 
@@ -913,17 +1159,33 @@ local function apply_edits(bufnr, edits)
                 local expand_col = #indent + #var_name
 
                 local snip
-                if prop_type:match("^%(%s*%)%s*=>") then
-                    local return_type = prop_type:match("=>%s*(.+)$") or "void"
+                if prop_type:match("^%b()%s*=>") then
+                    local params_part = prop_type:match("^(%b())")
+                    local return_part = prop_type:match("=>%s*(.+)$") or "void"
 
-                    snip = s("", {
-                        t("?"),
-                        i(1),
-                        t(": ("),
-                        i(2),
-                        t(") => "),
-                        i(3, return_type),
-                    })
+                    -- Extract params inside parentheses
+                    local params_inner = params_part:match("^%((.*)%)$") or ""
+
+                    -- If params are empty, allow editing (event handler fallback)
+                    -- If params exist, they were inferred - don't allow editing
+                    if params_inner == "" then
+                        -- Empty params: 3 tabstops (editable params)
+                        snip = s("", {
+                            t("?"),
+                            i(1),
+                            t(": ("),
+                            i(2),
+                            t(") => "),
+                            i(3, return_part),
+                        })
+                    else
+                        -- Non-empty params: 2 tabstops (params already extracted)
+                        snip = s("", {
+                            t("?"),
+                            i(1),
+                            t(": " .. params_part .. " => " .. return_part),
+                        })
+                    end
                 else
                     snip = s("", {
                         t("?"),
@@ -994,7 +1256,9 @@ function M.get_source(null_ls)
                     component_info.bufnr,
                     comp_params,
                     prop_info.prop_name,
-                    prop_type
+                    prop_type,
+                    params.bufnr,
+                    prop_info.value_node
                 )
 
                 if #edits == 0 then
@@ -1008,10 +1272,14 @@ function M.get_source(null_ls)
                         title = title,
                         action = function()
                             local target_bufnr = component_info.bufnr
+                            local source_bufnr = params.bufnr
 
-                            -- Ensure target buffer loaded
+                            -- Ensure both buffers loaded
                             vim.fn.bufload(target_bufnr)
                             vim.bo[target_bufnr].buflisted = true
+
+                            vim.fn.bufload(source_bufnr)
+                            vim.bo[source_bufnr].buflisted = true
 
                             -- Switch to target buffer if cross-file
                             if target_bufnr ~= params.bufnr then
@@ -1048,5 +1316,6 @@ M.get_undefined_prop_at_cursor = get_undefined_prop_at_cursor
 M.find_component_from_jsx_element = find_component_from_jsx_element
 M.infer_type = infer_type
 M.is_event_handler_prop = is_event_handler_prop
+M.create_jsx_cleanup_edit = create_jsx_cleanup_edit
 
 return M

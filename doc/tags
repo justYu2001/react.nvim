@@ -69,6 +69,7 @@ React.toggle()	react.txt	/*React.toggle()*
 apply_edits()	react.txt	/*apply_edits()*
 component_props.prepare_secondary_from_edit()	react.txt	/*component_props.prepare_secondary_from_edit()*
 component_props.prepare_secondary_rename()	react.txt	/*component_props.prepare_secondary_rename()*
+create_jsx_cleanup_edit()	react.txt	/*create_jsx_cleanup_edit()*
 create_prop_edits()	react.txt	/*create_prop_edits()*
 extract_component_name()	react.txt	/*extract_component_name()*
 extract_type_from_annotation()	react.txt	/*extract_type_from_annotation()*
@@ -77,6 +78,7 @@ find_function_declaration()	react.txt	/*find_function_declaration()*
 find_variable_declaration()	react.txt	/*find_variable_declaration()*
 get_undefined_prop_at_cursor()	react.txt	/*get_undefined_prop_at_cursor()*
 infer_type()	react.txt	/*infer_type()*
+infer_type_from_arrow_function()	react.txt	/*infer_type_from_arrow_function()*
 infer_type_from_literal()	react.txt	/*infer_type_from_literal()*
 infer_type_from_lsp_hover()	react.txt	/*infer_type_from_lsp_hover()*
 infer_type_from_variable_declaration()	react.txt	/*infer_type_from_variable_declaration()*
