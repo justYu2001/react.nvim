@@ -78,6 +78,67 @@ function M.detect_prop_treesitter(bufnr)
     return nil
 end
 
+---Check if function is a React component (PascalCase name + returns JSX)
+---@param function_node TSNode
+---@param bufnr number
+---@return boolean
+function M.is_react_component(function_node, bufnr)
+    -- Check if returns JSX
+    local function check_jsx(node)
+        local type = node:type()
+        if
+            type == "jsx_element"
+            or type == "jsx_self_closing_element"
+            or type == "jsx_fragment"
+        then
+            return true
+        end
+        for child in node:iter_children() do
+            if check_jsx(child) then
+                return true
+            end
+        end
+        return false
+    end
+
+    local has_jsx = check_jsx(function_node)
+    if not has_jsx then
+        return false
+    end
+
+    -- Find function name
+    local func_name = nil
+    local func_type = function_node:type()
+
+    if func_type == "function_declaration" then
+        -- function MyComponent() {}
+        for child in function_node:iter_children() do
+            if child:type() == "identifier" then
+                func_name = vim.treesitter.get_node_text(child, bufnr)
+                break
+            end
+        end
+    elseif func_type == "arrow_function" or func_type == "function_expression" then
+        -- const MyComponent = () => {} or const MyComponent = function() {}
+        local parent = function_node:parent()
+        if parent and parent:type() == "variable_declarator" then
+            for child in parent:iter_children() do
+                if child:type() == "identifier" then
+                    func_name = vim.treesitter.get_node_text(child, bufnr)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Check if PascalCase (starts with uppercase)
+    if not func_name or not func_name:match("^[A-Z]") then
+        return false
+    end
+
+    return true
+end
+
 ---@param bufnr number
 ---@param root TSNode
 ---@param row number
@@ -200,6 +261,11 @@ function M.check_destructuring(bufnr, root, row, col, lang)
                                     or function_node:type() == "function_expression"
                                 )
                             then
+                                -- Check if React component
+                                if not M.is_react_component(function_node, bufnr) then
+                                    break
+                                end
+
                                 local _prop_name
                                 local cursor_target
 
@@ -278,6 +344,11 @@ function M.check_body_variable(bufnr, _root, row, col, _lang)
             or node_type == "function_declaration"
             or node_type == "function_expression"
         then
+            -- Check if React component
+            if not M.is_react_component(current, bufnr) then
+                break
+            end
+
             -- Found function, check if it has props destructuring
             local params_node = nil
 
@@ -413,6 +484,36 @@ function M.check_type_signature(bufnr, root, row, col, lang)
                     if is_cursor_on_node then
                         local prop_name = vim.treesitter.get_node_text(node, bufnr)
 
+                        -- Check if this type is used by a React component
+                        -- First try to find named type/interface
+                        local type_name = M.find_type_name_for_node(node)
+                        if type_name then
+                            local component_node =
+                                M.find_component_using_type(bufnr, root, type_name, lang)
+                            if component_node then
+                                if not M.is_react_component(component_node, bufnr) then
+                                    return nil
+                                end
+                            end
+                        else
+                            -- Inline type: walk up to find function
+                            local current = node
+                            while current do
+                                local node_type = current:type()
+                                if
+                                    node_type == "arrow_function"
+                                    or node_type == "function_declaration"
+                                    or node_type == "function_expression"
+                                then
+                                    if not M.is_react_component(current, bufnr) then
+                                        return nil
+                                    end
+                                    break
+                                end
+                                current = current:parent()
+                            end
+                        end
+
                         return {
                             is_prop = true,
                             prop_name = prop_name,
@@ -454,37 +555,9 @@ function M.detect_prop_regex(bufnr, pos)
         end
     end
 
-    -- Check destructuring: function Comp({ propName })
-    local destructure_pattern = "{%s*([%w_,%s]+)%s*}"
-    local destructure_match = line:match(destructure_pattern)
-
-    if destructure_match then
-        for prop_name in destructure_match:gmatch("(%w+)") do
-            local prop_start = line:find(prop_name, 1, true)
-
-            if prop_start and col >= prop_start and col < prop_start + #prop_name then
-                return {
-                    is_prop = true,
-                    prop_name = prop_name,
-                    context = "destructure",
-                }
-            end
-        end
-    end
-
-    -- Check type/interface: foo: string
-    local type_pattern = "(%w+)%s*:%s*%w+"
-    for prop_name in line:gmatch(type_pattern) do
-        local prop_start = line:find(prop_name, 1, true)
-        if prop_start and col >= prop_start and col < prop_start + #prop_name then
-            return {
-                is_prop = true,
-                prop_name = prop_name,
-                context = "type",
-            }
-        end
-    end
-
+    -- NOTE: Regex fallback is only for cases where treesitter parsing fails
+    -- Destructuring and type checks need React component validation
+    -- which regex can't do reliably, so we skip them here
     return nil
 end
 

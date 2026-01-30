@@ -44,6 +44,7 @@ M.is_component_import()	react.txt	/*M.is_component_import()*
 M.is_component_name()	react.txt	/*M.is_component_name()*
 M.is_component_usage_in_same_file()	react.txt	/*M.is_component_usage_in_same_file()*
 M.is_props_type_name()	react.txt	/*M.is_props_type_name()*
+M.is_react_component()	react.txt	/*M.is_react_component()*
 M.is_setter_variable()	react.txt	/*M.is_setter_variable()*
 M.is_state_variable()	react.txt	/*M.is_state_variable()*
 M.is_type_shared()	react.txt	/*M.is_type_shared()*

@@ -444,6 +444,16 @@ Return ~
 `(table|nil)`: prop info or nil
 
 ------------------------------------------------------------------------------
+                                                        *M.is_react_component()*
+                `M.is_react_component`({function_node}, {bufnr})
+if function is a React component (PascalCase name + returns JSX)
+Parameters ~
+{function_node} `(TSNode)`
+{bufnr} `(number)`
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
                                                        *M.check_jsx_attribute()*
          `M.check_jsx_attribute`({bufnr}, {root}, {row}, {col}, {lang})
 Parameters ~
