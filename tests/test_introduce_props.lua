@@ -826,4 +826,219 @@ T["jsx_cleanup"]["preserves_untyped_params"] = function()
     vim.api.nvim_buf_delete(bufnr, { force = true })
 end
 
+T["variable_function_inference"] = MiniTest.new_set()
+
+-- Test 1: Arrow function with typed param
+T["variable_function_inference"]["arrow_function_typed_param"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handleClick = (e: MouseEvent) => {};",
+        "<Component onClick={handleClick} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(e: MouseEvent) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 2: Multi-param arrow function
+T["variable_function_inference"]["arrow_function_multi_param"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = (e: Event, data: string) => {};",
+        "<Component onChange={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(e: Event, data: string) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 3: Arrow function with explicit return type
+T["variable_function_inference"]["arrow_function_explicit_return"] = function()
+    local bufnr = create_tsx_buffer({
+        "const validator = (x: string): boolean => true;",
+        "<Form validate={validator} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 15)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(x: string) => boolean")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 4: Async arrow function
+T["variable_function_inference"]["arrow_function_async"] = function()
+    local bufnr = create_tsx_buffer({
+        "const fetchData = async (id: string) => { return {}; };",
+        "<Component onFetch={fetchData} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(id: string) => Promise<unknown>")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 5: Untyped params (infers params but no types)
+T["variable_function_inference"]["arrow_function_untyped"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = (e) => {};",
+        "<Component onClick={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(e) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 6: Optional params
+T["variable_function_inference"]["arrow_function_optional_param"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = (x?: string) => {};",
+        "<Component onAction={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(x?: string) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 7: Rest params (array element type becomes unknown)
+T["variable_function_inference"]["arrow_function_rest_params"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = (...args: string[]) => {};",
+        "<Component onMulti={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(...args: unknown[]) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 8: Function expression
+T["variable_function_inference"]["function_expression"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = function(e: Event) {};",
+        "<Component onClick={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(e: Event) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 9: Named function expression
+T["variable_function_inference"]["named_function_expression"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = function clickHandler(e: Event) {};",
+        "<Component onClick={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(e: Event) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 10: Variable chain
+T["variable_function_inference"]["variable_chain"] = function()
+    local bufnr = create_tsx_buffer({
+        "const original = (x: number) => {};",
+        "const handler = original;",
+        "<Component onClick={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 2, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(x: number) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 11: Nested scope
+T["variable_function_inference"]["nested_scope"] = function()
+    local bufnr = create_tsx_buffer({
+        "function Parent() {",
+        "  const handler = (id: string) => {};",
+        "  return <Component onAction={handler} />;",
+        "}",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 2, 30)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(id: string) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 12: Async with explicit return (generic type becomes unknown)
+T["variable_function_inference"]["async_explicit_return"] = function()
+    local bufnr = create_tsx_buffer({
+        "const fetch = async (id: string): Promise<Data> => { return data; };",
+        "<Component onFetch={fetch} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(id: string) => Promise<unknown>")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 13: Expression body infers unknown
+T["variable_function_inference"]["expression_body"] = function()
+    local bufnr = create_tsx_buffer({
+        "const double = (x: number) => x * 2;",
+        "<Component transform={double} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(x: number) => unknown")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 14: Mixed param types (rest array element type becomes unknown)
+T["variable_function_inference"]["mixed_param_types"] = function()
+    local bufnr = create_tsx_buffer({
+        "const handler = (a: string, b?: number, ...rest: boolean[]) => {};",
+        "<Component onAction={handler} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(a: string, b?: number, ...rest: unknown[]) => void")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
+-- Test 15: Return statement detection
+T["variable_function_inference"]["return_statement_detection"] = function()
+    local bufnr = create_tsx_buffer({
+        "const compute = (x: number) => { return x + 1; };",
+        "<Component calculate={compute} />",
+    })
+
+    local value_node = get_value_node_from_jsx(bufnr, 1, 20)
+    local result = introduce_props.infer_type(bufnr, value_node)
+    eq(result, "(x: number) => unknown")
+
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+end
+
 return T

@@ -412,178 +412,6 @@ end
 
 ---@param bufnr number
 ---@param value_node TSNode
----@param depth number|nil recursion depth (default 0)
----@return string|nil inferred type or nil
-local function infer_type_from_variable_declaration(bufnr, value_node, depth)
-    depth = depth or 0
-
-    -- Prevent infinite recursion
-    if depth > 5 then
-        return nil
-    end
-
-    if not value_node then
-        return nil
-    end
-
-    local node = value_node
-    local node_type = node:type()
-
-    -- Unwrap jsx_expression
-    if node_type == "jsx_expression" then
-        local inner_node = node:named_child(0)
-
-        if inner_node then
-            node = inner_node
-            node_type = node:type()
-        end
-    end
-
-    -- Handle identifier (variable reference)
-    if node_type == "identifier" then
-        local identifier_name = vim.treesitter.get_node_text(node, bufnr)
-
-        -- Find variable declaration
-        local declarator = find_variable_declaration(bufnr, identifier_name, node)
-
-        if declarator then
-            -- Check for type annotation first
-            for child in declarator:iter_children() do
-                if child:type() == "type_annotation" then
-                    return extract_type_from_annotation(child, bufnr)
-                end
-            end
-
-            -- No type annotation, try to infer from initializer
-            local initializer = declarator:named_child(1)
-
-            if initializer then
-                -- Recursively infer from initializer
-                local inferred = infer_type_from_variable_declaration(bufnr, initializer, depth + 1)
-
-                if inferred then
-                    return inferred
-                end
-
-                -- Try literal inference on initializer
-                local literal_type = infer_type_from_literal(initializer)
-
-                if literal_type ~= "unknown" then
-                    return literal_type
-                end
-            end
-        end
-
-        return nil
-    end
-
-    -- Handle call expression (function call)
-    if node_type == "call_expression" then
-        -- Get callee (function being called)
-        local callee = node:named_child(0)
-
-        if callee and callee:type() == "identifier" then
-            local function_name = vim.treesitter.get_node_text(callee, bufnr)
-
-            -- Find function declaration
-            local func_node = find_function_declaration(bufnr, function_name, node)
-
-            if func_node then
-                -- Look for return type annotation
-                for child in func_node:iter_children() do
-                    if child:type() == "type_annotation" then
-                        return extract_type_from_annotation(child, bufnr)
-                    end
-                end
-            end
-        end
-
-        return nil
-    end
-
-    -- Handle member expression (obj.prop)
-    if node_type == "member_expression" then
-        -- For simple cases, try to get object type
-        local object_node = node:named_child(0)
-
-        if object_node and object_node:type() == "identifier" then
-            local object_name = vim.treesitter.get_node_text(object_node, bufnr)
-
-            -- Find object declaration
-            local declarator = find_variable_declaration(bufnr, object_name, node)
-
-            if declarator then
-                -- Check for type annotation
-                for child in declarator:iter_children() do
-                    if child:type() == "type_annotation" then
-                        -- Complex member type resolution is difficult
-                        -- Return nil to fallback to LSP
-                        return nil
-                    end
-                end
-
-                -- Try to infer from object literal initializer
-                local initializer = declarator:named_child(1)
-
-                if initializer and initializer:type() == "object" then
-                    -- Get property name from member expression
-                    local property_node = node:named_child(1)
-
-                    if property_node and property_node:type() == "property_identifier" then
-                        local prop_name = vim.treesitter.get_node_text(property_node, bufnr)
-
-                        -- Search object for matching property
-                        for obj_child in initializer:iter_children() do
-                            if obj_child:type() == "pair" then
-                                local key_node = obj_child:named_child(0)
-
-                                if
-                                    key_node
-                                    and (
-                                        key_node:type() == "property_identifier"
-                                        or key_node:type() == "string"
-                                    )
-                                then
-                                    local key_text = vim.treesitter.get_node_text(key_node, bufnr)
-
-                                    -- Clean up string keys
-                                    key_text = key_text:gsub("^[\"']", ""):gsub("[\"']$", "")
-
-                                    if key_text == prop_name then
-                                        local value = obj_child:named_child(1)
-
-                                        if value then
-                                            -- Try literal inference
-                                            local literal_type = infer_type_from_literal(value)
-
-                                            if literal_type ~= "unknown" then
-                                                return literal_type
-                                            end
-
-                                            -- Recursively infer
-                                            return infer_type_from_variable_declaration(
-                                                bufnr,
-                                                value,
-                                                depth + 1
-                                            )
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        return nil
-    end
-
-    return nil
-end
-
----@param bufnr number
----@param value_node TSNode
 ---@return string|nil inferred type or nil
 local function infer_type_from_arrow_function(bufnr, value_node)
     if not value_node then
@@ -724,6 +552,184 @@ local function infer_type_from_arrow_function(bufnr, value_node)
     end
 
     return "(" .. params_str .. ") => " .. return_type
+end
+
+---@param bufnr number
+---@param value_node TSNode
+---@param depth number|nil recursion depth (default 0)
+---@return string|nil inferred type or nil
+local function infer_type_from_variable_declaration(bufnr, value_node, depth)
+    depth = depth or 0
+
+    -- Prevent infinite recursion
+    if depth > 5 then
+        return nil
+    end
+
+    if not value_node then
+        return nil
+    end
+
+    local node = value_node
+    local node_type = node:type()
+
+    -- Unwrap jsx_expression
+    if node_type == "jsx_expression" then
+        local inner_node = node:named_child(0)
+
+        if inner_node then
+            node = inner_node
+            node_type = node:type()
+        end
+    end
+
+    -- Handle identifier (variable reference)
+    if node_type == "identifier" then
+        local identifier_name = vim.treesitter.get_node_text(node, bufnr)
+
+        -- Find variable declaration
+        local declarator = find_variable_declaration(bufnr, identifier_name, node)
+
+        if declarator then
+            -- Check for type annotation first
+            for child in declarator:iter_children() do
+                if child:type() == "type_annotation" then
+                    return extract_type_from_annotation(child, bufnr)
+                end
+            end
+
+            -- No type annotation, try to infer from initializer
+            local initializer = declarator:named_child(1)
+
+            if initializer then
+                -- Recursively infer from initializer
+                local inferred = infer_type_from_variable_declaration(bufnr, initializer, depth + 1)
+
+                if inferred then
+                    return inferred
+                end
+
+                -- Try arrow function inference on initializer
+                local arrow_type = infer_type_from_arrow_function(bufnr, initializer)
+                if arrow_type then
+                    return arrow_type
+                end
+
+                -- Try literal inference on initializer
+                local literal_type = infer_type_from_literal(initializer)
+
+                if literal_type ~= "unknown" then
+                    return literal_type
+                end
+            end
+        end
+
+        return nil
+    end
+
+    -- Handle call expression (function call)
+    if node_type == "call_expression" then
+        -- Get callee (function being called)
+        local callee = node:named_child(0)
+
+        if callee and callee:type() == "identifier" then
+            local function_name = vim.treesitter.get_node_text(callee, bufnr)
+
+            -- Find function declaration
+            local func_node = find_function_declaration(bufnr, function_name, node)
+
+            if func_node then
+                -- Look for return type annotation
+                for child in func_node:iter_children() do
+                    if child:type() == "type_annotation" then
+                        return extract_type_from_annotation(child, bufnr)
+                    end
+                end
+            end
+        end
+
+        return nil
+    end
+
+    -- Handle member expression (obj.prop)
+    if node_type == "member_expression" then
+        -- For simple cases, try to get object type
+        local object_node = node:named_child(0)
+
+        if object_node and object_node:type() == "identifier" then
+            local object_name = vim.treesitter.get_node_text(object_node, bufnr)
+
+            -- Find object declaration
+            local declarator = find_variable_declaration(bufnr, object_name, node)
+
+            if declarator then
+                -- Check for type annotation
+                for child in declarator:iter_children() do
+                    if child:type() == "type_annotation" then
+                        -- Complex member type resolution is difficult
+                        -- Return nil to fallback to LSP
+                        return nil
+                    end
+                end
+
+                -- Try to infer from object literal initializer
+                local initializer = declarator:named_child(1)
+
+                if initializer and initializer:type() == "object" then
+                    -- Get property name from member expression
+                    local property_node = node:named_child(1)
+
+                    if property_node and property_node:type() == "property_identifier" then
+                        local prop_name = vim.treesitter.get_node_text(property_node, bufnr)
+
+                        -- Search object for matching property
+                        for obj_child in initializer:iter_children() do
+                            if obj_child:type() == "pair" then
+                                local key_node = obj_child:named_child(0)
+
+                                if
+                                    key_node
+                                    and (
+                                        key_node:type() == "property_identifier"
+                                        or key_node:type() == "string"
+                                    )
+                                then
+                                    local key_text = vim.treesitter.get_node_text(key_node, bufnr)
+
+                                    -- Clean up string keys
+                                    key_text = key_text:gsub("^[\"']", ""):gsub("[\"']$", "")
+
+                                    if key_text == prop_name then
+                                        local value = obj_child:named_child(1)
+
+                                        if value then
+                                            -- Try literal inference
+                                            local literal_type = infer_type_from_literal(value)
+
+                                            if literal_type ~= "unknown" then
+                                                return literal_type
+                                            end
+
+                                            -- Recursively infer
+                                            return infer_type_from_variable_declaration(
+                                                bufnr,
+                                                value,
+                                                depth + 1
+                                            )
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        return nil
+    end
+
+    return nil
 end
 
 ---@param bufnr number
