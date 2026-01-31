@@ -82,5 +82,6 @@ infer_type_from_arrow_function()	react.txt	/*infer_type_from_arrow_function()*
 infer_type_from_literal()	react.txt	/*infer_type_from_literal()*
 infer_type_from_lsp_hover()	react.txt	/*infer_type_from_lsp_hover()*
 infer_type_from_variable_declaration()	react.txt	/*infer_type_from_variable_declaration()*
+is_likely_rename_operation()	react.txt	/*is_likely_rename_operation()*
 use_state.prepare_secondary_from_edit()	react.txt	/*use_state.prepare_secondary_from_edit()*
 use_state.prepare_secondary_rename()	react.txt	/*use_state.prepare_secondary_rename()*

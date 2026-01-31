@@ -8,12 +8,14 @@ local log = require("react.util.log")
 local M = {}
 
 M._original_rename = vim.lsp.buf.rename
+M._is_rename_operation = false
 
 --- Enhanced rename with useState setter/state auto-renaming
 ---
 ---@param new_name string|nil: new name for the symbol
 ---@param opts table|nil: additional options
 function M.rename(new_name, opts)
+    M._is_rename_operation = true
     local bufnr = vim.api.nvim_get_current_buf()
     local pos = vim.api.nvim_win_get_cursor(0)
 
@@ -21,6 +23,7 @@ function M.rename(new_name, opts)
         -- Interactive rename not yet supported for useState
         -- TODO: Could enhance to support interactive rename + auto-setter
         log.debug("rename", "Interactive rename not yet supported, using original")
+        M._is_rename_operation = false
 
         return M._original_rename(new_name, opts)
     end
@@ -44,11 +47,13 @@ function M.rename(new_name, opts)
                 else
                     M.handle_cross_file_direct_rename(cross_file_info, bufnr, pos, new_name)
                 end
+                M._is_rename_operation = false
             end)
             return
         else
             -- Default import: just use normal LSP rename (already direct)
             log.debug("rename", "Default import rename, using original")
+            M._is_rename_operation = false
             return M._original_rename(new_name, opts)
         end
     end
@@ -72,6 +77,7 @@ function M.rename(new_name, opts)
 
             if not workspace_edit then
                 log.debug("rename", "No workspace edit returned")
+                M._is_rename_operation = false
                 return
             end
 
@@ -93,6 +99,7 @@ function M.rename(new_name, opts)
 
             -- Apply combined edit
             vim.lsp.util.apply_workspace_edit(workspace_edit, offset_encoding)
+            M._is_rename_operation = false
         end)
 
         return
@@ -101,6 +108,7 @@ function M.rename(new_name, opts)
     local rename_info = use_state.prepare_secondary_rename(bufnr, pos, new_name)
 
     if not rename_info then
+        M._is_rename_operation = false
         return M._original_rename(new_name, opts)
     end
 
@@ -126,6 +134,7 @@ function M.rename(new_name, opts)
 
         if not workspace_edit then
             log.debug("rename", "No workspace edit returned")
+            M._is_rename_operation = false
             return
         end
 
@@ -147,6 +156,7 @@ function M.rename(new_name, opts)
 
         -- Apply combined edit
         vim.lsp.util.apply_workspace_edit(workspace_edit, offset_encoding)
+        M._is_rename_operation = false
     end)
 end
 
@@ -255,6 +265,60 @@ function M.add_secondary_edits(workspace_edit, locations, _old_name, new_name)
     end
 end
 
+--- Check if workspace edit looks like a rename operation at cursor
+---@param workspace_edit table
+---@param bufnr number
+---@param pos table cursor position {row, col}
+---@return boolean
+local function is_likely_rename_operation(workspace_edit, bufnr, pos)
+    local uri = vim.uri_from_bufnr(bufnr)
+    local row, col = pos[1] - 1, pos[2] -- Convert to 0-indexed
+
+    local edits = {}
+    if workspace_edit.changes and workspace_edit.changes[uri] then
+        edits = workspace_edit.changes[uri]
+    elseif workspace_edit.documentChanges then
+        for _, doc_change in ipairs(workspace_edit.documentChanges) do
+            if
+                doc_change.textDocument
+                and doc_change.textDocument.uri == uri
+                and doc_change.edits
+            then
+                edits = doc_change.edits
+                break
+            end
+        end
+    end
+
+    -- Check if any edit touches the cursor position
+    for _, edit in ipairs(edits) do
+        local range = edit.range
+        local start_row, start_col = range.start.line, range.start.character
+        local end_row, end_col = range["end"].line, range["end"].character
+
+        -- Check if cursor is within or adjacent to the edit range
+        if row >= start_row and row <= end_row then
+            if row == start_row and row == end_row then
+                if col >= start_col and col <= end_col then
+                    return true
+                end
+            elseif row == start_row then
+                if col >= start_col then
+                    return true
+                end
+            elseif row == end_row then
+                if col <= end_col then
+                    return true
+                end
+            else
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
 --- Try to add useState secondary edits to workspace edit if applicable
 --- Called during apply_workspace_edit hook for inc-rename integration
 ---
@@ -263,6 +327,16 @@ end
 function M.try_add_use_state_edits(workspace_edit)
     local bufnr = vim.api.nvim_get_current_buf()
     local pos = vim.api.nvim_win_get_cursor(0)
+
+    -- Only process if this is a rename operation
+    -- Either explicitly flagged (M.rename called) or looks like inc-rename at cursor
+    if not M._is_rename_operation then
+        if not is_likely_rename_operation(workspace_edit, bufnr, pos) then
+            return nil
+        end
+        -- Set flag for inc-rename operations
+        M._is_rename_operation = true
+    end
 
     -- Check cross-file component rename FIRST (before props)
     -- This is important because import identifiers might match prop patterns
@@ -471,6 +545,8 @@ function M.apply_direct_from_workspace_edit(pending, offset_encoding)
                                 pending.cursor_context.offset_in_prop
                             )
                         end
+
+                        M._is_rename_operation = false
                     end)
                 end
             )
@@ -551,6 +627,8 @@ function M.apply_direct_from_destructure_inc_rename(pending, offset_encoding)
                             pending.cursor_context.offset_in_prop
                         )
                     end
+
+                    M._is_rename_operation = false
                 end)
             end)
         end
@@ -609,6 +687,8 @@ function M.apply_direct_from_body_inc_rename(pending, offset_encoding)
                             pending.cursor_context.offset_in_prop
                         )
                     end
+
+                    M._is_rename_operation = false
                 end)
             end)
         end
@@ -656,6 +736,7 @@ function M.show_deferred_props_menu()
                             pending.cursor_context.offset_in_prop
                         )
                     end
+                    M._is_rename_operation = false
                 end)
             else
                 if pending.props_info.context == "destructure" then
@@ -1168,9 +1249,12 @@ function M.handle_cross_file_direct_rename(cross_file_info, bufnr, pos, new_name
                                     vim.api.nvim_win_set_cursor(original_win, original_pos)
                                 end
                             end
+                            M._is_rename_operation = false
                         end)
+                    else
+                        -- For import scenario, don't restore - let LSP natural cursor position
+                        M._is_rename_operation = false
                     end
-                    -- For import scenario, don't restore - let LSP natural cursor position
                 end)
             end)
         end)
@@ -1207,6 +1291,7 @@ function M.show_deferred_cross_file_menu()
                 vim.api.nvim_win_set_cursor(0, pending.pos)
 
                 vim.lsp.util.apply_workspace_edit(pending.workspace_edit, offset_encoding)
+                M._is_rename_operation = false
             else
                 M.handle_cross_file_direct_rename(
                     pending.cross_file_info,
