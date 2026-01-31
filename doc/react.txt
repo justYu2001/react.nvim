@@ -241,6 +241,17 @@ Parameters ~
 {new_name} `(string)`: new symbol name
 
 ------------------------------------------------------------------------------
+                                                  *is_likely_rename_operation()*
+         `is_likely_rename_operation`({workspace_edit}, {bufnr}, {pos})
+Check if workspace edit looks like a rename operation at cursor
+Parameters ~
+{workspace_edit} `(table)`
+{bufnr} `(number)`
+{pos} `(table)` cursor position {row, col}
+Return ~
+`(boolean)`
+
+------------------------------------------------------------------------------
                                                    *M.try_add_use_state_edits()*
                  `M.try_add_use_state_edits`({workspace_edit})
 Try to add useState secondary edits to workspace edit if applicable
