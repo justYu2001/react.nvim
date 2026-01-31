@@ -148,6 +148,15 @@ Return ~
 `(string|nil)` inferred type or nil
 
 ------------------------------------------------------------------------------
+                                              *infer_type_from_arrow_function()*
+            `infer_type_from_arrow_function`({bufnr}, {value_node})
+Parameters ~
+{bufnr} `(number)`
+{value_node} `(TSNode)`
+Return ~
+`(string|nil)` inferred type or nil
+
+------------------------------------------------------------------------------
                                                    *infer_type_from_lsp_hover()*
                `infer_type_from_lsp_hover`({bufnr}, {value_node})
 Parameters ~
@@ -166,13 +175,24 @@ Return ~
 `(string)` inferred type
 
 ------------------------------------------------------------------------------
+                                                     *create_jsx_cleanup_edit()*
+               `create_jsx_cleanup_edit`({_bufnr}, {value_node})
+Parameters ~
+{_bufnr} `(number)`
+{value_node} `(TSNode|nil)`
+Return ~
+`(table[])` edits
+
+------------------------------------------------------------------------------
                                                            *create_prop_edits()*
-  `create_prop_edits`({target_bufnr}, {comp_params}, {prop_name}, {prop_type})
+`create_prop_edits`({target_bufnr}, {comp_params}, {prop_name}, {prop_type}, {source_bufnr}, {value_node})
 Parameters ~
 {target_bufnr} `(number)` buffer where component is defined
 {comp_params} `(table)` component params info
 {prop_name} `(string)`
 {prop_type} `(string)`
+{source_bufnr} `(number|nil)` source buffer with JSX
+{value_node} `(TSNode|nil)` value node from JSX
 Return ~
 `(table[])` edits
 
