@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0](https://github.com/justYu2001/react.nvim/compare/v0.9.0...v0.10.0) (2026-01-31)
+
+
+### Features
+
+* generate event handler code action ([#28](https://github.com/justYu2001/react.nvim/issues/28)) ([fbd0e76](https://github.com/justYu2001/react.nvim/commit/fbd0e769ae6db35826094a9dc6204ce708d79874))
+* infer event handler type from arrow functions ([#24](https://github.com/justYu2001/react.nvim/issues/24)) ([46c273d](https://github.com/justYu2001/react.nvim/commit/46c273d6f1e6759d083745d42c8938e9d4d6ffef))
+* infer type from function variables for prop introduction code action ([#25](https://github.com/justYu2001/react.nvim/issues/25)) ([c9e7789](https://github.com/justYu2001/react.nvim/commit/c9e77897daa63d5a2753dba43fd3df865036b71d))
+
+
+### Bug Fixes
+
+* show prop rename menu only for rename code actoin ([#27](https://github.com/justYu2001/react.nvim/issues/27)) ([12f2146](https://github.com/justYu2001/react.nvim/commit/12f2146cab4181e87a2651d10e7a51c23da567d6))
+
 ## [0.9.0](https://github.com/justYu2001/react.nvim/compare/v0.8.0...v0.9.0) (2026-01-30)
 
 
