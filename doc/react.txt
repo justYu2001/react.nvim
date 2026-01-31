@@ -138,21 +138,21 @@ Return ~
 `(TSNode|nil)` function node with return type or nil
 
 ------------------------------------------------------------------------------
+                                              *infer_type_from_arrow_function()*
+            `infer_type_from_arrow_function`({bufnr}, {value_node})
+Parameters ~
+{bufnr} `(number)`
+{value_node} `(TSNode)`
+Return ~
+`(string|nil)` inferred type or nil
+
+------------------------------------------------------------------------------
                                         *infer_type_from_variable_declaration()*
      `infer_type_from_variable_declaration`({bufnr}, {value_node}, {depth})
 Parameters ~
 {bufnr} `(number)`
 {value_node} `(TSNode)`
 {depth} `(number|nil)` recursion depth (default 0)
-Return ~
-`(string|nil)` inferred type or nil
-
-------------------------------------------------------------------------------
-                                              *infer_type_from_arrow_function()*
-            `infer_type_from_arrow_function`({bufnr}, {value_node})
-Parameters ~
-{bufnr} `(number)`
-{value_node} `(TSNode)`
 Return ~
 `(string|nil)` inferred type or nil
 
