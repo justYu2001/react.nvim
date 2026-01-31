@@ -25,6 +25,7 @@ function M.get_sources(null_ls)
         require("react.code_actions.introduce_props").get_source(null_ls),
         require("react.code_actions.wrap_use_callback").get_source(null_ls),
         require("react.code_actions.generate_event_handler").get_source(null_ls),
+        require("react.code_actions.generate_handler").get_source(null_ls),
     }
 end
 
