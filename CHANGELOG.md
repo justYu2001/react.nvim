@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/justYu2001/react.nvim/compare/v0.10.0...v0.11.0) (2026-02-01)
+
+
+### Features
+
+* implement generate handler code action ([#29](https://github.com/justYu2001/react.nvim/issues/29)) ([4ba1900](https://github.com/justYu2001/react.nvim/commit/4ba1900e519ba3cfc22441a3c6cdc5625d68d4fd))
+
 ## [0.10.0](https://github.com/justYu2001/react.nvim/compare/v0.9.0...v0.10.0) (2026-01-31)
 
 
