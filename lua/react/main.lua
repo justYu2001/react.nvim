@@ -37,6 +37,9 @@ function main.enable(scope)
     local textobjects = require("react.textobjects")
     textobjects.setup()
 
+    local snippets = require("react.snippets")
+    snippets.setup()
+
     state.set_enabled(state)
 
     -- saves the state globally to `_G.React.state`
@@ -58,6 +61,9 @@ function main.disable(scope)
 
     local textobjects = require("react.textobjects")
     textobjects.teardown()
+
+    local snippets = require("react.snippets")
+    snippets.teardown()
 
     state.set_disabled(state)
 
