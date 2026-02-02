@@ -10,6 +10,9 @@ if #vim.api.nvim_list_uis() == 0 then
     -- Add 'nvim-treesitter' for tree-sitter parsing in tests
     vim.cmd("set rtp+=deps/nvim-treesitter")
 
+    -- Add 'LuaSnip' for snippet tests
+    vim.cmd("set rtp+=deps/LuaSnip")
+
     -- Install parsers for tests (blocking) - required for treesitter.lua queries
     require("nvim-treesitter.install").install({ "javascript", "typescript", "tsx" }):wait(60000)
 
