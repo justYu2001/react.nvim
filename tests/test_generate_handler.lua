@@ -538,6 +538,7 @@ T["get_available_event_props"]["resolves detail via completionItem/resolve for l
     end
 
     -- Fake client that resolves the detail
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.get_client_by_id = function(id)
         if id == 1 then
             return {
