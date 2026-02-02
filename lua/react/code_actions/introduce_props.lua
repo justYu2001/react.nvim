@@ -761,9 +761,12 @@ local function infer_type_from_lsp_hover(bufnr, value_node)
 
             if type(contents) == "string" then
                 text = contents
+            ---@diagnostic disable-next-line: need-check-nil
             elseif contents.value then
+                ---@diagnostic disable-next-line: need-check-nil
                 text = contents.value
             elseif type(contents) == "table" and contents[1] then
+                ---@diagnostic disable-next-line: need-check-nil
                 text = contents[1].value or contents[1]
             end
 
