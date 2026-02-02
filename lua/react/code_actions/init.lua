@@ -27,6 +27,7 @@ function M.get_sources(null_ls)
         require("react.code_actions.generate_event_handler").get_source(null_ls),
         require("react.code_actions.generate_handler").get_source(null_ls),
         require("react.code_actions.create_ref").get_source(null_ls),
+        require("react.code_actions.wrap_condition").get_source(null_ls),
     }
 end
 
