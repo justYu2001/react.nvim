@@ -230,6 +230,7 @@ T["get_available_event_props"]["filters event props from completion results"] = 
 
     -- Mock LSP completion
     local original = vim.lsp.buf_request_sync
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_bufnr, method, _params, _timeout)
         if method == "textDocument/completion" then
             return {
@@ -294,6 +295,7 @@ T["get_available_event_props"]["returns nil when no event props"] = function()
     })
 
     local original = vim.lsp.buf_request_sync
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_bufnr, method, _params, _timeout)
         if method == "textDocument/completion" then
             return {
@@ -338,6 +340,7 @@ T["get_available_event_props"]["returns nil when LSP returns no result"] = funct
     })
 
     local original = vim.lsp.buf_request_sync
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_bufnr, _method, _params, _timeout)
         return nil
     end
@@ -370,6 +373,7 @@ T["get_available_event_props"]["handles completion list format (not items)"] = f
     })
 
     local original = vim.lsp.buf_request_sync
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_bufnr, method, _params, _timeout)
         if method == "textDocument/completion" then
             return {
@@ -514,6 +518,7 @@ T["get_available_event_props"]["resolves detail via completionItem/resolve for l
     local original_get_client = vim.lsp.get_client_by_id
 
     -- Return items with data but no detail; client_id key is 1
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_bufnr, method, _params, _timeout)
         if method == "textDocument/completion" then
             return {
@@ -582,6 +587,7 @@ T["get_available_event_props"]["inserts and removes temp space for no-space self
     local original_line = vim.api.nvim_buf_get_lines(bufnr, 1, 2, false)[1]
 
     local original = vim.lsp.buf_request_sync
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_bufnr, method, _params, _timeout)
         if method == "textDocument/completion" then
             return {
