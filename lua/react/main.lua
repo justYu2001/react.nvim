@@ -40,6 +40,9 @@ function main.enable(scope)
     local snippets = require("react.snippets")
     snippets.setup()
 
+    local completion = require("react.completion")
+    completion.setup()
+
     state.set_enabled(state)
 
     -- saves the state globally to `_G.React.state`
@@ -64,6 +67,9 @@ function main.disable(scope)
 
     local snippets = require("react.snippets")
     snippets.teardown()
+
+    local completion = require("react.completion")
+    completion.teardown()
 
     state.set_disabled(state)
 
