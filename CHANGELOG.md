@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.0](https://github.com/justYu2001/react.nvim/compare/v0.11.0...v0.12.0) (2026-02-02)
+
+
+### Features
+
+* implement .cond postfix snippet ([#34](https://github.com/justYu2001/react.nvim/issues/34)) ([6085b96](https://github.com/justYu2001/react.nvim/commit/6085b96a0083094497a3ca8cb042dffd89e11e76))
+* implement .map postfix snippet ([#35](https://github.com/justYu2001/react.nvim/issues/35)) ([fce1578](https://github.com/justYu2001/react.nvim/commit/fce157834da8a0623a343314ac4c81ed7ee8e437))
+* implement wrap into codition code action ([#32](https://github.com/justYu2001/react.nvim/issues/32)) ([4084ab5](https://github.com/justYu2001/react.nvim/commit/4084ab596191d07e066e7820f0f2f8df0972e5df))
+
 ## [0.11.0](https://github.com/justYu2001/react.nvim/compare/v0.10.0...v0.11.0) (2026-02-02)
 
 
